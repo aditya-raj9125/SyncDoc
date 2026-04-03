@@ -57,6 +57,19 @@ httpServer.on('upgrade', (request, socket, head) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[Hocuspocus] Server running on port ${PORT} (WS + Health)`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log('--------------------------------------------------');
+  console.log(`[Hocuspocus] Server is STARTING...`);
+  console.log(`[Hocuspocus] Port: ${PORT}`);
+  console.log(`[Hocuspocus] Health Endpoint: http://0.0.0.0:${PORT}/health`);
+  console.log('--------------------------------------------------');
+});
+
+// Global error handling to prevent silent crashes
+process.on('uncaughtException', (err) => {
+  console.error('[Hocuspocus] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Hocuspocus] Unhandled Rejection at:', promise, 'reason:', reason);
 });
