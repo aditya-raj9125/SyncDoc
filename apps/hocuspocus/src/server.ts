@@ -46,9 +46,15 @@ const server = Server.configure({
   },
 });
 
+import { WebSocketServer, WebSocket } from 'ws';
+
+const wsServer = new WebSocketServer({ noServer: true });
+
 // Attach Hocuspocus to the HTTP server
 httpServer.on('upgrade', (request, socket, head) => {
-  server.handleUpgrade(request, socket, head);
+  wsServer.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+    server.handleConnection(ws, request);
+  });
 });
 
 httpServer.listen(PORT, () => {
