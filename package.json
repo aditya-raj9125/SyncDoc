@@ -8,6 +8,8 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "test:e2e": "turbo test:e2e",
+    "start:web": "turbo run start --filter=@syncdoc/web",
+    "start:hocuspocus": "pnpm --filter @syncdoc/hocuspocus start",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "deploy": "turbo build && vercel --prod",
