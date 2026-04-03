@@ -52,7 +52,11 @@ const wsServer = new WebSocketServer({ noServer: true });
 
 // Attach Hocuspocus to the HTTP server
 httpServer.on('upgrade', (request, socket, head) => {
+  const url = request.url || '/';
+  console.log(`[Hocuspocus] Incoming upgrade request: ${url}`);
+  
   wsServer.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+    console.log(`[Hocuspocus] Upgrade successful for: ${url}`);
     server.handleConnection(ws, request);
   });
 });

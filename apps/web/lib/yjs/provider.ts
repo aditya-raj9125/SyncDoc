@@ -41,6 +41,11 @@ export function createProvider({
     wsUrl = `wss://${wsUrl}`;
   }
 
+  // Trim trailing slash to prevent double-slashes when Hocuspocus appends the name
+  wsUrl = wsUrl.replace(/\/$/, '');
+
+  console.log(`[Yjs] Attempting connection to: ${wsUrl}/${documentId}`);
+
   const provider = new HocuspocusProvider({
     url: wsUrl,
     name: documentId,
