@@ -11,10 +11,10 @@ WORKDIR /app
 # Build phase
 FROM base AS build
 RUN pnpm install
-RUN pnpm run build --filter=@syncdoc/hocuspocus
+RUN pnpm run build --filter=@syncdoc/web
 
 # Production image
 FROM base
 COPY --from=build /app /app
-EXPOSE 1234
-CMD [ "pnpm", "start", "--filter", "@syncdoc/hocuspocus" ]
+EXPOSE 3000
+CMD [ "pnpm", "start", "--filter", "@syncdoc/web" ]
