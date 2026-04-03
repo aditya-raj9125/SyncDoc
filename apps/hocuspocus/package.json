@@ -1,0 +1,27 @@
+{
+  "name": "@syncdoc/hocuspocus",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup src/server.ts --format cjs --dts",
+    "start": "node dist/server.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.13.0",
+    "@hocuspocus/extension-database": "^2.13.0",
+    "@hocuspocus/extension-throttle": "^2.13.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "jsonwebtoken": "^9.0.2",
+    "yjs": "^13.6.10",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

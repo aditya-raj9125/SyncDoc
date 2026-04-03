@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.production.local
+.env.development.local
+apps/**/.env
+apps/**/.env.local
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+test-results/
+playwright-report/
+
+# Supabase
+supabase/.temp/
+
+# Workflows / spec docs
+Workflows/
+
+# Misc
+*.log
+*.tsbuildinfo

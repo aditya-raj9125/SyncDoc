@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+numReplicas = 2
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+
+[env]
+PORT = "1234"
+HEALTH_PORT = "1235"

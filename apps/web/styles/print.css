@@ -1,0 +1,132 @@
+/* SyncDoc Print Stylesheet */
+
+@media print {
+  /* Hide all UI chrome */
+  nav,
+  header,
+  .sidebar,
+  .topbar,
+  .formatting-toolbar,
+  .ruler,
+  .status-bar,
+  .floating-toolbar,
+  .share-banner,
+  .command-palette,
+  .share-modal,
+  .comment-panel,
+  .revision-panel,
+  .ai-panel,
+  button,
+  [data-toc] {
+    display: none !important;
+  }
+
+  /* Reset backgrounds */
+  body,
+  html {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4 portrait;
+    margin: 25mm;
+  }
+
+  /* Editor content fills the page */
+  .tiptap-editor,
+  .syncdoc-editor {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    color: black !important;
+    background: white !important;
+  }
+
+  /* Page breaks */
+  .page-break {
+    page-break-after: always !important;
+    border: none !important;
+  }
+
+  .section-break[data-section-break="nextPage"],
+  .section-break[data-section-break="evenPage"],
+  .section-break[data-section-break="oddPage"] {
+    page-break-after: always !important;
+    border: none !important;
+  }
+
+  .section-break[data-section-break="continuous"] {
+    display: none !important;
+  }
+
+  /* Section break labels hidden in print */
+  .section-break span,
+  .page-break span {
+    display: none !important;
+  }
+
+  /* Images */
+  .editor-image {
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Tables */
+  .editor-table {
+    page-break-inside: avoid !important;
+    border-collapse: collapse !important;
+  }
+
+  .editor-table td,
+  .editor-table th {
+    border: 1px solid #333 !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Track changes in print */
+  ins[data-tracked] {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    text-decoration: underline !important;
+  }
+
+  del[data-tracked] {
+    display: none !important; /* Hide deletions in print by default */
+  }
+
+  /* Code blocks */
+  .code-block {
+    border: 1px solid #ccc !important;
+    background: #f5f5f5 !important;
+    page-break-inside: avoid !important;
+    font-size: 10pt !important;
+  }
+
+  /* Headings */
+  h1, h2, h3 {
+    page-break-after: avoid !important;
+  }
+
+  /* Links */
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+
+  /* Callout */
+  .callout {
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid !important;
+  }
+}
