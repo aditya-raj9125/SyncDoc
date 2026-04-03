@@ -34,7 +34,12 @@ export function createProvider({
   });
   indexedDbProviders.set(documentId, idbProvider);
 
-  const wsUrl = process.env.NEXT_PUBLIC_HOCUSPOCUS_URL || 'ws://localhost:1234';
+  let wsUrl = process.env.NEXT_PUBLIC_HOCUSPOCUS_URL || 'ws://localhost:1234';
+
+  // Ensure absolute URL with protocol (prevents relative path bugs in production)
+  if (wsUrl && !wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+    wsUrl = `wss://${wsUrl}`;
+  }
 
   const provider = new HocuspocusProvider({
     url: wsUrl,
