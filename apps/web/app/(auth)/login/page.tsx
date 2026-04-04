@@ -9,7 +9,7 @@ import { toast } from '@/components/ui/Toast';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Github, Loader2 } from 'lucide-react';
+import { Mail, Github, Loader2, ArrowLeft, CheckCircle2, Zap, Shield, Sparkles, FileText, Users } from 'lucide-react';
 
 type AuthMode = 'email' | 'magic-link';
 
@@ -71,76 +71,135 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen lg:h-screen lg:overflow-hidden relative bg-[#09090B]">
+      {/* Back to Home Button — Clean Repositioning */}
+      <Link 
+        href="/" 
+        className="absolute right-6 top-6 z-50 flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 backdrop-blur-md border border-white/10 hover:bg-white/10 hover:text-white transition-all shadow-lg lg:right-8 lg:top-8"
+      >
+        <ArrowLeft size={14} />
+        Back to Home
+      </Link>
+
       {/* Left panel — decorative */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[var(--brand-primary)]">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-indigo-600">
         <div className="absolute inset-0">
-          {/* Geometric particle field background */}
-          <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 40 0 L 0 0 0 40"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.5"
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-          {/* Floating circles */}
+          {/* Grid Pattern */}
+          <div className="absolute inset-0 opacity-10" style={{ 
+            backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+            backgroundSize: '24px 24px' 
+          }} />
+          
+          {/* Animated Glows */}
           <motion.div
-            className="absolute w-64 h-64 rounded-full bg-white/5"
-            animate={{ y: [0, -20, 0], x: [0, 10, 0] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ top: '20%', left: '30%' }}
-          />
-          <motion.div
-            className="absolute w-48 h-48 rounded-full bg-white/5"
-            animate={{ y: [0, 15, 0], x: [0, -15, 0] }}
+            className="absolute w-[500px] h-[500px] rounded-full bg-indigo-400/20 blur-[120px]"
+            animate={{ 
+              scale: [1, 1.1, 1],
+              opacity: [0.3, 0.5, 0.3] 
+            }}
             transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ top: '60%', left: '50%' }}
-          />
-          <motion.div
-            className="absolute w-32 h-32 rounded-full bg-white/10"
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ top: '40%', left: '15%' }}
+            style={{ top: '-10%', left: '-10%' }}
           />
         </div>
+
         <div className="relative z-10 flex flex-col justify-center px-16">
-          <h1 className="font-display text-5xl text-white mb-4">{STRINGS.app.name}</h1>
-          <p className="text-xl text-white/80 max-w-md">{STRINGS.app.tagline}</p>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-md ring-1 ring-white/20">
+              <Sparkles className="text-white" size={20} />
+            </div>
+            <h1 className="font-display text-5xl text-white mb-4 leading-tight">
+              The next gen of <br />
+              <span className="text-indigo-200">collaboration</span>
+            </h1>
+            <p className="text-base text-white/70 max-w-sm mb-10 leading-relaxed">
+              SyncDoc powers your team with sub-100ms sync, AI-native editing, and a workflow that never breaks.
+            </p>
+
+            {/* Feature Highlights */}
+            <div className="space-y-4">
+              {[
+                { icon: Zap, title: "Real-time Sync", desc: "Collaborate seamlessly with zero latency." },
+                { icon: Sparkles, title: "AI-Native", desc: "Write faster with integrated intelligence." },
+                { icon: Shield, title: "Enterprise Grade", desc: "Your data is secured at every layer." }
+              ].map((item, i) => (
+                <motion.div 
+                  key={item.title}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + (i * 0.1) }}
+                  className="flex items-start gap-3"
+                >
+                  <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
+                    <item.icon size={12} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</div>
+                    <div className="text-[11px] text-white/50">{item.desc}</div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Workflow Visual Overlay — More Compact */}
+            <div className="mt-10 relative h-24 w-full max-w-sm rounded-[1.25rem] border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+               <div className="flex items-center justify-between h-full">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-500 flex items-center justify-center border border-white/20">
+                      <FileText className="text-white" size={16} />
+                    </div>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Draft</span>
+                  </div>
+                  <div className="flex-1 flex items-center px-4">
+                     <div className="h-0.5 w-full bg-indigo-400/20 relative">
+                        <motion.div 
+                          className="absolute -top-1 h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_white]"
+                          animate={{ left: ['0%', '100%'] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                        />
+                     </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center border border-white/20">
+                      <Users className="text-white" size={16} />
+                    </div>
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-bold">Sync</span>
+                  </div>
+               </div>
+            </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Right panel — auth form */}
-      <div className="flex flex-1 items-center justify-center px-6 py-12">
+      <div className="flex flex-1 items-center justify-center px-6 py-6 md:py-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="w-full max-w-[380px]"
+          className="w-full max-w-[380px] rounded-[2rem] border border-white/[0.08] bg-white/[0.02] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl md:p-8"
         >
-          <div className="mb-8 text-center lg:text-left">
-            <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)]">
               {STRINGS.auth.loginTitle}
             </h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
               {STRINGS.auth.loginSubtitle}
             </p>
           </div>
 
           {/* OAuth buttons */}
-          <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-col gap-2 mb-4">
             <Button
               variant="outline"
-              size="lg"
-              className="w-full"
+              size="md"
+              className="w-full h-10 text-xs"
               onClick={() => handleOAuthLogin('google')}
             >
-              <svg className="h-5 w-5" viewBox="0 0 24 24">
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                   fill="#4285F4"
@@ -162,17 +221,17 @@ function LoginForm() {
             </Button>
             <Button
               variant="outline"
-              size="lg"
-              className="w-full"
+              size="md"
+              className="w-full h-10 text-xs"
               onClick={() => handleOAuthLogin('github')}
             >
-              <Github className="h-5 w-5" />
+              <Github className="h-4 w-4" />
               {STRINGS.auth.signInWithGitHub}
             </Button>
           </div>
 
           {/* Divider */}
-          <div className="relative mb-6">
+          <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-[var(--bg-border)]" />
             </div>
