@@ -18,12 +18,15 @@ export default async function StarredPage({ params }: { params: { slug: string }
   // Fetch starred documents via join table
   const { data: starred } = await supabase
     .from('starred_documents')
-    .select('document_id, documents(*)')
+    .select(`
+      document_id, 
+      documents:documents(*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color))
+    `)
     .eq('user_id', user.id);
 
   const documents = (starred || [])
-    .map((s: { documents: unknown }) => s.documents)
-    .filter(Boolean) as (typeof starred extends (infer T)[] ? T : never)[];
+    .map((s: any) => s.documents)
+    .filter(Boolean);
 
   return (
     <DocumentsListContent

@@ -13,7 +13,6 @@ interface UIStoreState {
   // Modals
   shareModalOpen: boolean;
   commandPaletteOpen: boolean;
-  templateGalleryOpen: boolean;
   uploadModalOpen: boolean;
 
   // Theme
@@ -31,7 +30,6 @@ interface UIStoreActions {
 
   setShareModalOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setTemplateGalleryOpen: (open: boolean) => void;
   setUploadModalOpen: (open: boolean) => void;
 
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -49,7 +47,6 @@ export const useUIStore = create<UIStoreState & UIStoreActions>((set) => ({
   // Modals
   shareModalOpen: false,
   commandPaletteOpen: false,
-  templateGalleryOpen: false,
   uploadModalOpen: false,
 
   // Theme
@@ -69,7 +66,6 @@ export const useUIStore = create<UIStoreState & UIStoreActions>((set) => ({
 
   setShareModalOpen: (open) => set({ shareModalOpen: open }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  setTemplateGalleryOpen: (open) => set({ templateGalleryOpen: open }),
   setUploadModalOpen: (open) => set({ uploadModalOpen: open }),
 
   setTheme: (theme) => set({ theme }),

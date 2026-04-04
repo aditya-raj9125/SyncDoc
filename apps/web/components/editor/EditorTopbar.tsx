@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePresenceStore } from '@/store/presenceStore';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Avatar } from '@/components/ui/Avatar';
 import { Dropdown, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator } from '@/components/ui/Dropdown';
+import { createClient } from '@/lib/supabase/client';
 import type { Document, Workspace, Profile } from '@syncdoc/types';
 import {
   ArrowLeft,
@@ -27,6 +29,7 @@ import {
   Trash2,
   Sparkles,
   MessageSquare,
+  Star,
 } from 'lucide-react';
 
 interface EditorTopbarProps {
@@ -40,10 +43,58 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
   const { wordCount, isSaving, focusMode, toggleFocusMode, connectionStatus } = useEditorStore();
   const { togglePanel, setShareModalOpen } = useUIStore();
   const users = usePresenceStore((s) => s.users);
+  const [isStarred, setIsStarred] = useState(false);
+  const supabase = createClient();
 
   const readingTime = getReadingTime(wordCount);
   const presenceUsers = Array.from(users.values()).slice(0, 5);
   const overflowCount = Math.max(0, users.size - 5);
+
+  useEffect(() => {
+    async function checkStarred() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('starred_documents')
+        .select('id')
+        .eq('document_id', doc.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      setIsStarred(!!data);
+    }
+    checkStarred();
+  }, [doc.id, supabase]);
+
+  async function toggleStar() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      if (isStarred) {
+        setIsStarred(false); // Optimistic update
+        const { error } = await supabase
+          .from('starred_documents')
+          .delete()
+          .eq('document_id', doc.id)
+          .eq('user_id', user.id);
+        if (error) setIsStarred(true); // Rollback
+      } else {
+        setIsStarred(true); // Optimistic update
+        const { error } = await supabase
+          .from('starred_documents')
+          .insert({ document_id: doc.id, user_id: user.id });
+        if (error) setIsStarred(false); // Rollback
+      }
+    } catch (err) {
+      console.error('Error toggling star:', err);
+    }
+  }
 
   const connectionDot = {
     connected: 'bg-green-500',
@@ -62,6 +113,21 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
           aria-label="Back to workspace"
         >
           <ArrowLeft size={18} />
+        </button>
+      </Tooltip>
+
+      {/* Star button */}
+      <Tooltip content={isStarred ? 'Unstar document' : 'Star document'}>
+        <button
+          onClick={toggleStar}
+          className={`flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] transition-all ${
+            isStarred
+              ? 'text-yellow-500 hover:bg-yellow-50/50'
+              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
+          }`}
+          aria-label={isStarred ? 'Unstar' : 'Star'}
+        >
+          <Star size={18} fill={isStarred ? 'currentColor' : 'none'} className={isStarred ? 'animate-in zoom-in-75 duration-200' : ''} />
         </button>
       </Tooltip>
 

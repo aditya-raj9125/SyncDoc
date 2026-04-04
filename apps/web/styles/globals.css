@@ -11,16 +11,16 @@
   --brand-secondary: #10b981;
 
   /* Light mode surfaces */
-  --bg-canvas: #FAFAF9;
-  --bg-surface: #FFFFFF;
-  --bg-elevated: #F5F5F4;
-  --bg-border: #E7E5E4;
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-border: #e2e8f0;
 
   /* Text */
-  --text-primary: #1C1917;
-  --text-secondary: #78716C;
-  --text-tertiary: #A8A29E;
-  --text-placeholder: #D6D3D1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-placeholder: #94a3b8;
 
   /* Semantic */
   --success: #10b981;

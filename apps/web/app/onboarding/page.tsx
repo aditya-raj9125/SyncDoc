@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { STRINGS } from '@/lib/constants';
 import { toast } from '@/components/ui/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AVATAR_COLORS, TEMPLATE_CATEGORIES } from '@syncdoc/types';
+import { AVATAR_COLORS } from '@syncdoc/types';
 import { generateSlug } from '@syncdoc/utils';
 import {
   FileText,
@@ -60,27 +60,31 @@ export default function OnboardingPage() {
 
     setLoading(true);
     try {
-      const docTitle =
-        selectedTemplate && selectedTemplate !== 'Blank' ? selectedTemplate : 'Untitled';
+      const docTitle = 'Untitled';
 
       let slug = workspaceSlug;
       let { data, error } = await supabase.rpc('complete_onboarding', {
-        p_display_name:   displayName,
-        p_avatar_color:   avatarColor,
+        p_display_name: displayName,
+        p_avatar_color: avatarColor,
         p_workspace_name: workspaceName,
         p_workspace_slug: slug,
-        p_doc_title:      docTitle,
+        p_doc_title: docTitle,
       });
 
       // Slug already taken from a previous attempt — retry with a short random suffix
-      if (error && (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique'))) {
+      if (
+        error &&
+        (error.code === '23505' ||
+          error.message?.includes('duplicate') ||
+          error.message?.includes('unique'))
+      ) {
         slug = `${workspaceSlug}-${Math.random().toString(36).slice(2, 6)}`;
         ({ data, error } = await supabase.rpc('complete_onboarding', {
-          p_display_name:   displayName,
-          p_avatar_color:   avatarColor,
+          p_display_name: displayName,
+          p_avatar_color: avatarColor,
           p_workspace_name: workspaceName,
           p_workspace_slug: slug,
-          p_doc_title:      docTitle,
+          p_doc_title: docTitle,
         }));
       }
 
@@ -124,7 +128,7 @@ export default function OnboardingPage() {
       >
         {/* Progress bar */}
         <div className="flex gap-2 mb-8">
-          {[1, 2, 3].map((s) => (
+          {[1, 2].map((s) => (
             <div
               key={s}
               className="h-1 flex-1 rounded-full transition-colors duration-300"
@@ -232,56 +236,10 @@ export default function OnboardingPage() {
                   {STRINGS.onboarding.back}
                 </Button>
                 <Button
-                  onClick={() => setStep(3)}
+                  onClick={handleFinish}
+                  loading={loading}
                   disabled={!workspaceName.trim() || !workspaceSlug.trim()}
                 >
-                  {STRINGS.onboarding.next}
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div
-              key="step3"
-              custom={1}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.2 }}
-            >
-              <h2 className="text-xl font-semibold mb-1">{STRINGS.onboarding.step3Title}</h2>
-              <p className="text-sm text-[var(--text-secondary)] mb-6">
-                {STRINGS.onboarding.step3Subtitle}
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                {TEMPLATE_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedTemplate(cat)}
-                    className={`flex items-center gap-3 rounded-[var(--radius-md)] border p-3 text-left transition-colors text-sm ${
-                      selectedTemplate === cat
-                        ? 'border-[var(--brand-primary)] bg-indigo-50 dark:bg-indigo-950/30 text-[var(--brand-primary)]'
-                        : 'border-[var(--bg-border)] hover:bg-[var(--bg-elevated)]'
-                    }`}
-                  >
-                    <span className="text-[var(--text-tertiary)]">
-                      {templateIcons[cat]}
-                    </span>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-8 flex justify-between">
-                <Button variant="ghost" onClick={() => setStep(2)}>
-                  <ChevronLeft className="h-4 w-4" />
-                  {STRINGS.onboarding.back}
-                </Button>
-                <Button onClick={handleFinish} loading={loading}>
                   {STRINGS.onboarding.finish}
                 </Button>
               </div>

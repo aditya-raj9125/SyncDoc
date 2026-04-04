@@ -60,9 +60,6 @@ export interface Document {
   public_access: PublicAccessLevel;
   share_token: string;
   status: DocumentStatus;
-  is_template: boolean;
-  template_category: string | null;
-  source_type: SourceType | null;
   original_filename: string | null;
   last_edited_by: string | null;
   last_edited_at: string;
@@ -111,20 +108,6 @@ export interface Comment {
   resolved_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface Template {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string;
-  thumbnail_url: string | null;
-  ydoc_state: Uint8Array;
-  is_system: boolean;
-  created_by: string | null;
-  workspace_id: string | null;
-  use_count: number;
-  created_at: string;
 }
 
 export interface DocumentLink {
@@ -222,7 +205,6 @@ export type SidebarSection =
   | 'documents'
   | 'starred'
   | 'shared'
-  | 'templates'
   | 'trash';
 
 export type PanelType = 'comments' | 'history' | 'ai' | null;
@@ -288,18 +270,3 @@ export const TRASH_RETENTION_DAYS = 30;
 export const MAX_FOLDER_DEPTH = 4;
 export const MAX_PRESENCE_VISIBLE = 5;
 export const RECONNECT_BACKOFF = [1000, 2000, 4000, 8000, 30000] as const;
-
-export const TEMPLATE_CATEGORIES = [
-  'Meeting Notes',
-  'Project Brief',
-  'Product Spec',
-  'Research Report',
-  'Blog Post',
-  'Resume',
-  'Proposal',
-  'Weekly Update',
-  '1:1 Notes',
-  'Blank',
-] as const;
-
-export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];

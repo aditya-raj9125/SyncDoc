@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Upload, LayoutTemplate, UserPlus } from 'lucide-react';
 import { STRINGS } from '@/lib/constants';
@@ -19,8 +20,13 @@ interface HomeContentProps {
 
 export function HomeContent({ workspace, profile, recentDocuments }: HomeContentProps) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const supabase = createClient();
   const { setUploadModalOpen, setTemplateGalleryOpen } = useUIStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const greeting = getGreeting(profile.display_name);
   const basePath = `/workspace/${workspace.slug}`;
@@ -47,67 +53,16 @@ export function HomeContent({ workspace, profile, recentDocuments }: HomeContent
     }
   }
 
-  const quickActions = [
-    {
-      icon: <Plus className="h-5 w-5" />,
-      label: STRINGS.workspace.newDocument,
-      onClick: handleNewDocument,
-      color: 'var(--brand-primary)',
-    },
-    {
-      icon: <Upload className="h-5 w-5" />,
-      label: STRINGS.workspace.uploadFile,
-      onClick: () => setUploadModalOpen(true),
-      color: '#10b981',
-    },
-    {
-      icon: <LayoutTemplate className="h-5 w-5" />,
-      label: STRINGS.workspace.useTemplate,
-      onClick: () => setTemplateGalleryOpen(true),
-      color: '#f59e0b',
-    },
-    {
-      icon: <UserPlus className="h-5 w-5" />,
-      label: STRINGS.workspace.invitePeople,
-      onClick: () => {},
-      color: '#ec4899',
-    },
-  ];
-
   return (
     <div className="p-8 max-w-6xl mx-auto">
       {/* Greeting */}
       <motion.h1
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-2xl font-semibold mb-8"
+        className="text-2xl font-semibold mb-12"
       >
-        {greeting}
+        {mounted ? greeting : `Welcome, ${profile.display_name}`}
       </motion.h1>
-
-      {/* Quick action cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        {quickActions.map((action, i) => (
-          <motion.button
-            key={action.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={action.onClick}
-            className="flex flex-col items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--bg-border)] bg-[var(--bg-surface)] p-5 text-sm font-medium text-[var(--text-primary)] hover:shadow-md transition-shadow"
-          >
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] text-white"
-              style={{ backgroundColor: action.color }}
-            >
-              {action.icon}
-            </div>
-            {action.label}
-          </motion.button>
-        ))}
-      </div>
 
       {/* Recent documents */}
       <div>
@@ -156,7 +111,7 @@ export function HomeContent({ workspace, profile, recentDocuments }: HomeContent
                         className="!h-4 !w-4 !text-[8px]"
                       />
                     ) : null}
-                    <span>{formatRelativeTime(doc.last_edited_at)}</span>
+                    <span>{mounted ? formatRelativeTime(doc.last_edited_at) : 'recently'}</span>
                   </div>
                 </div>
               </motion.div>
