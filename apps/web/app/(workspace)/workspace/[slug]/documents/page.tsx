@@ -35,11 +35,20 @@ export default async function DocumentsPage({ params, searchParams }: DocumentsP
 
   const { data: documents } = await query;
 
+  // Fetch starred documents to show star status in list
+  const { data: starredDocs } = await supabase
+    .from('starred_documents')
+    .select('document_id')
+    .eq('user_id', user.id);
+
+  const starredIds = new Set(starredDocs?.map((s) => s.document_id) || []);
+
   return (
     <DocumentsListContent
       workspace={workspace}
-      documents={documents ?? []}
-      title="All Documents"
+      documents={(documents as any) ?? []}
+      starredIds={starredIds}
+      title={searchParams.folder ? "Folder" : "All Documents"}
     />
   );
 }

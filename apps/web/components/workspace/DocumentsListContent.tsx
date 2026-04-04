@@ -7,22 +7,29 @@ import { formatRelativeTime, getDocumentColor } from '@syncdoc/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { STRINGS } from '@/lib/constants';
 import { FileText } from 'lucide-react';
+import { DocumentActions } from './DocumentActions';
 import type { Workspace, Document } from '@syncdoc/types';
 
 interface DocumentsListContentProps {
   workspace: Workspace;
   documents: (Document & { owner?: { display_name: string; avatar_url: string | null; avatar_color: string } })[];
+  starredIds?: Set<string>;
+  isTrash?: boolean;
   title: string;
   emptyMessage?: string;
   emptyHint?: string;
+  onRefresh?: () => void;
 }
 
 export function DocumentsListContent({
   workspace,
   documents,
+  starredIds = new Set(),
+  isTrash = false,
   title,
   emptyMessage = STRINGS.workspace.noDocuments,
   emptyHint = STRINGS.workspace.noDocumentsHint,
+  onRefresh,
 }: DocumentsListContentProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -47,10 +54,11 @@ export function DocumentsListContent({
       ) : (
         <div className="space-y-1">
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr,200px,150px] gap-4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] border-b border-[var(--bg-border)] mb-2">
+          <div className="grid grid-cols-[1fr,200px,150px,40px] gap-4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] border-b border-[var(--bg-border)] mb-2">
             <div>Name</div>
             <div>Owner</div>
             <div className="text-right">Last Edited</div>
+            <div />
           </div>
 
           {documents.map((doc, i) => (
@@ -60,7 +68,7 @@ export function DocumentsListContent({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.02 }}
               onClick={() => router.push(`${basePath}/doc/${doc.id}`)}
-              className="grid grid-cols-[1fr,200px,150px] items-center gap-4 rounded-[var(--radius-md)] px-4 py-3 cursor-pointer hover:bg-[var(--bg-elevated)] transition-all group"
+              className="grid grid-cols-[1fr,200px,150px,40px] items-center gap-4 rounded-[var(--radius-md)] px-4 py-1.5 cursor-pointer hover:bg-[var(--bg-elevated)] transition-all group"
             >
               {/* Name Column */}
               <div className="flex items-center gap-3 min-w-0">
@@ -95,6 +103,20 @@ export function DocumentsListContent({
                 <span className="text-[11px] text-[var(--text-tertiary)] font-medium whitespace-nowrap">
                   {mounted ? formatRelativeTime(doc.last_edited_at) : 'recently'}
                 </span>
+              </div>
+
+              {/* Actions Column */}
+              <div 
+                className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DocumentActions
+                  document={doc}
+                  workspace={workspace}
+                  isStarred={starredIds.has(doc.id)}
+                  isTrash={isTrash}
+                  onActionComplete={onRefresh}
+                />
               </div>
             </motion.div>
           ))}

@@ -28,10 +28,13 @@ export default async function StarredPage({ params }: { params: { slug: string }
     .map((s: any) => s.documents)
     .filter(Boolean);
 
+  const starredIds = new Set(documents.map((d: any) => d.id));
+
   return (
     <DocumentsListContent
       workspace={workspace}
       documents={documents as any}
+      starredIds={starredIds}
       title="Starred"
       emptyMessage="No starred documents"
       emptyHint="Star your important documents for quick access"

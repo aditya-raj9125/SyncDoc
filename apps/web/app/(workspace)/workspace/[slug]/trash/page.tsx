@@ -23,10 +23,20 @@ export default async function TrashPage({ params }: { params: { slug: string } }
     .not('deleted_at', 'is', null)
     .order('deleted_at', { ascending: false });
 
+  // Fetch starred documents to show star status in list
+  const { data: starredDocs } = await supabase
+    .from('starred_documents')
+    .select('document_id')
+    .eq('user_id', user.id);
+
+  const starredIds = new Set(starredDocs?.map((s) => s.document_id) || []);
+
   return (
     <DocumentsListContent
       workspace={workspace}
-      documents={documents ?? []}
+      documents={(documents as any) ?? []}
+      starredIds={starredIds}
+      isTrash={true}
       title="Trash"
       emptyMessage={STRINGS.workspace.trashEmpty}
       emptyHint={STRINGS.workspace.trashHint}

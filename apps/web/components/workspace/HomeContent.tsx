@@ -3,26 +3,35 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Upload, LayoutTemplate, UserPlus } from 'lucide-react';
+import { Plus, Upload, UserPlus } from 'lucide-react';
 import { STRINGS } from '@/lib/constants';
 import { getGreeting, formatRelativeTime, getReadingTime, formatWordCount, getDocumentColor } from '@syncdoc/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { DocumentCardSkeleton } from '@/components/ui/Skeleton';
 import { createClient } from '@/lib/supabase/client';
-import { useUIStore } from '@/store/uiStore';
+import { DocumentActions } from './DocumentActions';
 import type { Workspace, Profile, Document } from '@syncdoc/types';
 
 interface HomeContentProps {
   workspace: Workspace;
   profile: Profile;
-  recentDocuments: (Document & { owner?: { display_name: string; avatar_url: string | null; avatar_color: string } })[];
+  recentDocuments: (Document & {
+    owner?: { display_name: string; avatar_url: string | null; avatar_color: string };
+  })[];
+  starredIds?: Set<string>;
+  onRefresh?: () => void;
 }
 
-export function HomeContent({ workspace, profile, recentDocuments }: HomeContentProps) {
+export function HomeContent({
+  workspace,
+  profile,
+  recentDocuments,
+  starredIds = new Set(),
+  onRefresh,
+}: HomeContentProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const supabase = createClient();
-  const { setUploadModalOpen, setTemplateGalleryOpen } = useUIStore();
 
   useEffect(() => {
     setMounted(true);
@@ -87,14 +96,24 @@ export function HomeContent({ workspace, profile, recentDocuments }: HomeContent
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
                 whileHover={{ y: -2 }}
-                className="group cursor-pointer overflow-hidden rounded-[var(--radius-lg)] border border-[var(--bg-border)] bg-[var(--bg-surface)] hover:shadow-md transition-all"
+                className="group relative cursor-pointer overflow-hidden rounded-[var(--radius-lg)] border border-[var(--bg-border)] bg-[var(--bg-surface)] hover:shadow-md transition-all"
                 onClick={() => router.push(`${basePath}/doc/${doc.id}`)}
               >
+                {/* Actions Menu */}
+                <div 
+                  className="absolute right-1.5 top-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DocumentActions
+                    document={doc}
+                    workspace={workspace}
+                    isStarred={starredIds.has(doc.id)}
+                    onActionComplete={onRefresh}
+                  />
+                </div>
+
                 {/* Color strip */}
-                <div
-                  className="h-20 w-full"
-                  style={{ background: getDocumentColor(doc.id) }}
-                />
+                <div className="h-20 w-full" style={{ background: getDocumentColor(doc.id) }} />
                 {/* Content */}
                 <div className="p-3">
                   <div className="flex items-center gap-1.5 mb-1.5">

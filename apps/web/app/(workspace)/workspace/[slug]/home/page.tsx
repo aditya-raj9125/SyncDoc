@@ -39,11 +39,20 @@ export default async function HomePage({ params }: HomePageProps) {
     .order('last_edited_at', { ascending: false })
     .limit(12);
 
+  // Fetch starred documents to show star status in list
+  const { data: starredDocs } = await supabase
+    .from('starred_documents')
+    .select('document_id')
+    .eq('user_id', user.id);
+
+  const starredIds = new Set(starredDocs?.map((s) => s.document_id) || []);
+
   return (
     <HomeContent
       workspace={workspace}
       profile={profile!}
-      recentDocuments={recentDocs ?? []}
+      recentDocuments={(recentDocs as any) ?? []}
+      starredIds={starredIds}
     />
   );
 }
