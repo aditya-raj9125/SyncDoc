@@ -1,15 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Upload, UserPlus } from 'lucide-react';
+import { Plus, Upload, FileText as FileTextIcon } from 'lucide-react';
+import * as Y from 'yjs';
+import mammoth from 'mammoth';
 import { STRINGS } from '@/lib/constants';
 import { getGreeting, formatRelativeTime, getReadingTime, formatWordCount, getDocumentColor } from '@syncdoc/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { DocumentCardSkeleton } from '@/components/ui/Skeleton';
 import { createClient } from '@/lib/supabase/client';
 import { DocumentActions } from './DocumentActions';
+import { toast } from '@/components/ui/Toast';
 import type { Workspace, Profile, Document } from '@syncdoc/types';
 
 interface HomeContentProps {
@@ -25,17 +28,29 @@ interface HomeContentProps {
 export function HomeContent({
   workspace,
   profile,
-  recentDocuments,
+  recentDocuments: initialRecentDocs,
   starredIds = new Set(),
   onRefresh,
 }: HomeContentProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [localRecentDocs, setLocalRecentDocs] = useState(initialRecentDocs);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
+
+  useEffect(() => {
+    setLocalRecentDocs(initialRecentDocs);
+  }, [initialRecentDocs]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleActionComplete = (docId: string) => {
+    setLocalRecentDocs((prev) => prev.filter((d) => d.id !== docId));
+    onRefresh?.();
+  };
 
   const greeting = getGreeting(profile.display_name);
   const basePath = `/workspace/${workspace.slug}`;
@@ -62,16 +77,126 @@ export function HomeContent({
     }
   }
 
+  async function handleUploadDocument(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let content = '';
+      const extension = file.name.split('.').pop()?.toLowerCase();
+
+      if (extension === 'docx' || extension === 'doc') {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        content = result.value;
+      } else {
+        content = await file.text();
+      }
+
+      // Create a Yjs document and populate it
+      const ydoc = new Y.Doc();
+      const ytext = ydoc.getText('default');
+      ytext.insert(0, content);
+      
+      // Encode state as update and convert to base64 for Supabase
+      const state = Y.encodeStateAsUpdate(ydoc);
+      const base64State = btoa(
+        String.fromCharCode(...new Uint8Array(state))
+      );
+
+      // Derive title from filename
+      const title = file.name.replace(/\.(docx?|txt|md|rtf)$/i, '') || 'Untitled';
+
+      const { data: doc, error } = await supabase
+        .from('documents')
+        .insert({
+          workspace_id: workspace.id,
+          owner_id: user.id,
+          title,
+          source_type: 'upload',
+          ydoc_state: base64State,
+        })
+        .select()
+        .single();
+
+      if (!error && doc) {
+        toast.success(`Uploaded "${title}" successfully`);
+        router.push(`${basePath}/doc/${doc.id}`);
+      } else {
+        console.error('Database insertion error:', error);
+        toast.error('Failed to save uploaded document');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error('Failed to read or convert the file');
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       {/* Greeting */}
       <motion.h1
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-2xl font-semibold mb-12"
+        className="text-2xl font-semibold mb-8"
       >
         {mounted ? greeting : `Welcome, ${profile.display_name}`}
       </motion.h1>
+
+      {/* Action Cards — New Document + Upload Document */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="grid grid-cols-2 gap-4 mb-10 max-w-md"
+      >
+        {/* New Document */}
+        <button
+          onClick={handleNewDocument}
+          className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--bg-border)] bg-[var(--bg-surface)] p-6 hover:border-[var(--brand-primary)] hover:bg-[var(--bg-elevated)] transition-all cursor-pointer"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] group-hover:bg-[var(--brand-primary)]/20 transition-colors">
+            <Plus className="h-6 w-6" />
+          </div>
+          <span className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            New document
+          </span>
+        </button>
+
+        {/* Upload Document */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--bg-border)] bg-[var(--bg-surface)] p-6 hover:border-[var(--brand-primary)] hover:bg-[var(--bg-elevated)] transition-all cursor-pointer disabled:opacity-50"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] group-hover:bg-[var(--brand-primary)]/20 transition-colors">
+            <Upload className="h-6 w-6" />
+          </div>
+          <span className="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            {uploading ? 'Uploading...' : 'Upload document'}
+          </span>
+        </button>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".doc,.docx,.txt,.md,.rtf"
+          onChange={handleUploadDocument}
+          className="hidden"
+          aria-label="Upload document file"
+        />
+      </motion.div>
 
       {/* Recent documents */}
       <div>
@@ -79,7 +204,7 @@ export function HomeContent({
           {STRINGS.workspace.recentDocuments}
         </h2>
 
-        {recentDocuments.length === 0 ? (
+        {localRecentDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-4 rounded-full bg-[var(--bg-elevated)] p-4">
               <Plus className="h-8 w-8 text-[var(--text-tertiary)]" />
@@ -89,7 +214,7 @@ export function HomeContent({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {recentDocuments.map((doc, i) => (
+            {localRecentDocs.map((doc, i) => (
               <motion.div
                 key={doc.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -108,7 +233,7 @@ export function HomeContent({
                     document={doc}
                     workspace={workspace}
                     isStarred={starredIds.has(doc.id)}
-                    onActionComplete={onRefresh}
+                    onActionComplete={() => handleActionComplete(doc.id)}
                   />
                 </div>
 

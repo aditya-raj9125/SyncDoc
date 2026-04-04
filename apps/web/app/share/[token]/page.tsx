@@ -44,10 +44,10 @@ export default async function SharePage({ params }: SharePageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If edit access required, must be authenticated
-  if (accessLevel === 'edit' && !user) {
-    redirect(`/login?next=/share/${params.token}`);
-  }
+  // GUEST ACCESS: Remove the redirect that forced login for edit access.
+  // if (accessLevel === 'edit' && !user) {
+  //   redirect(`/login?next=/share/${params.token}`);
+  // }
 
   // If user is authenticated, add to document_permissions if not already
   if (user && document) {

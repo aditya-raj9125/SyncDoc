@@ -140,18 +140,41 @@
   body {
     background: white !important;
     color: black !important;
+    overflow: visible !important;
   }
 
   .no-print,
   nav,
+  aside,
+  header,
+  footer,
+  button,
+  [role="button"],
   .sidebar,
-  .topbar-actions {
+  .topbar-actions,
+  .floating-toolbar,
+  .tiptap-floating-menu {
     display: none !important;
   }
 
-  .editor-canvas {
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  .max-w-\[800px\] {
     max-width: 100% !important;
+    width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  .tiptap-editor {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
   }
 }

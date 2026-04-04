@@ -33,13 +33,16 @@ export function SharePageContent({
   isAuthenticated,
   token,
 }: SharePageContentProps) {
-  const canEdit = accessLevel === 'edit' && isAuthenticated;
+  const canEdit = accessLevel === 'edit';
   const isReadonly = !canEdit;
   const supabase = createBrowserClient();
 
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
   const [hocusProvider, setHocusProvider] = useState<any>(null);
   const [userName, setUserName] = useState('Guest');
+
+  // Random names for guests
+  const GUEST_NAMES = ['Phoenix', 'Luna', 'Atlas', 'Nova', 'Storm', 'Echo', 'River', 'Sage', 'Aero', 'Zephyr'];
 
   // Initialize Yjs provider for collaborative editing
   useEffect(() => {
@@ -48,10 +51,10 @@ export function SharePageContent({
     let mounted = true;
 
     async function initProvider() {
+      // For guests, we don't have a token, but Hocuspocus may allow anonymous connection
       const { data: { session } } = await supabase.auth.getSession();
       const jwtToken = session?.access_token || '';
 
-      // Get user profile for cursor name
       if (session?.user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -61,6 +64,10 @@ export function SharePageContent({
         if (profile && mounted) {
           setUserName(profile.display_name || 'Guest');
         }
+      } else {
+        // Generate random guest name
+        const randomName = `Guest ${GUEST_NAMES[Math.floor(Math.random() * GUEST_NAMES.length)]}`;
+        setUserName(randomName);
       }
 
       const { provider, ydoc: yDoc } = createProvider({

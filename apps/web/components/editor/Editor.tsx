@@ -6,6 +6,7 @@ import { getExtensions } from '@/lib/tiptap/extensions';
 import { useEditorStore } from '@/store/editorStore';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { createProvider, destroyProvider } from '@/lib/yjs/provider';
+import { usePresenceStore } from '@/store/presenceStore';
 import { debounce } from '@syncdoc/utils';
 import { FloatingToolbar } from './FloatingToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
@@ -121,6 +122,25 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
     };
   }, [doc.id]);
 
+  // Sync awareness with presence store
+  useEffect(() => {
+    if (!hocusProvider) return;
+
+    const handleAwarenessUpdate = () => {
+      const awarenessData = hocusProvider.awareness.getStates();
+      usePresenceStore.getState().setUsers(awarenessData);
+      usePresenceStore.getState().setLocalClientId(hocusProvider.awareness.clientID);
+    };
+
+    hocusProvider.awareness.on('update', handleAwarenessUpdate);
+    // Initial sync
+    handleAwarenessUpdate();
+
+    return () => {
+      hocusProvider.awareness.off('update', handleAwarenessUpdate);
+    };
+  }, [hocusProvider]);
+
   // Debounced save for title
   const debouncedSaveTitle = useCallback(
     debounce(async (newTitle: string) => {
@@ -144,8 +164,11 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
         CollaborationCursor.configure({
           provider: hocusProvider,
           user: {
+            id: profile.id,
             name: profile.display_name || 'Anonymous',
             color: profile.avatar_color || getRandomColor(),
+            avatar_url: profile.avatar_url,
+            user: profile,
           },
         }),
       ]

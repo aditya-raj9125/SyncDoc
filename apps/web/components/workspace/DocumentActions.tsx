@@ -127,13 +127,78 @@ export function DocumentActions({
     setShareModalOpen(true);
   }
 
-  function handleDownload(e: React.MouseEvent, type: 'pdf' | 'docx') {
+  async function handleDownload(e: React.MouseEvent, type: 'pdf' | 'docx') {
     e.stopPropagation();
-    toast.info(`Exporting as ${type.toUpperCase()}...`);
-    // Mock export/print
-    setTimeout(() => {
-        window.print();
-    }, 500);
+    toast.info(`Preparing ${type.toUpperCase()}...`);
+
+    try {
+      // Find the editor element
+      const editorElement = document.querySelector('.tiptap-editor');
+      if (!editorElement) {
+        toast.error('Editor content not found');
+        return;
+      }
+
+      const fileName = `${doc.title || 'Untitled'}.${type}`;
+
+      if (type === 'pdf') {
+        const { default: jsPDF } = await import('jspdf');
+        const { default: html2canvas } = await import('html2canvas');
+
+        // Capture the editor content
+        const canvas = await html2canvas(editorElement as HTMLElement, {
+          scale: 2, // Higher quality
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          onclone: (documentClone) => {
+            // Hide any elements we don't want in the PDF
+            const noPrintElements = documentClone.querySelectorAll('.no-print');
+            noPrintElements.forEach((el) => ((el as HTMLElement).style.display = 'none'));
+          },
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width / 2, canvas.height / 2], // Match canvas size roughly
+        });
+
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+        pdf.save(fileName);
+        toast.success(`PDF downloaded: ${fileName}`);
+      } else {
+        // DOCX Export using existing library
+        const { Document, Packer, Paragraph, TextRun } = await import('docx');
+        const { saveAs } = await import('file-saver');
+
+        // Simple text-based DOCX for now (full HTML-to-DOCX is a complex plugin)
+        // We can get the text from the DOM or Tiptap if we had the editor instance.
+        // Since we are in DocumentActions, we'll pull from the DOM.
+        const text = editorElement.textContent || '';
+        const lines = text.split('\n').filter(l => l.trim() !== '');
+
+        const docxObj = new Document({
+          sections: [
+            {
+              properties: {},
+              children: lines.map(line => new Paragraph({
+                children: [new TextRun(line)],
+                spacing: { before: 200 },
+              })),
+            },
+          ],
+        });
+
+        const blob = await Packer.toBlob(docxObj);
+        saveAs(blob, fileName);
+        toast.success(`Word document downloaded: ${fileName}`);
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Failed to export document');
+    }
   }
 
   return (

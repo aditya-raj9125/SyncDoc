@@ -5,9 +5,6 @@ import { EditorTopbar } from './EditorTopbar';
 import { Editor } from './Editor';
 import { useEditorStore } from '@/store/editorStore';
 import { EditorSkeleton } from '@/components/ui/Skeleton';
-import { CommentPanel } from '@/components/comments/CommentPanel';
-import { RevisionPanel } from '@/components/history/RevisionPanel';
-import { AiPanel } from '@/components/ai/AiPanel';
 import { ShareModal } from '@/components/sharing/ShareModal';
 import { CommandPalette } from '@/components/command-palette/CommandPalette';
 import { useUIStore } from '@/store/uiStore';
@@ -26,7 +23,7 @@ interface EditorPageProps {
 export function EditorPage({ document, workspace, profile, accessLevel }: EditorPageProps) {
   const { isLoading, focusMode, setDocumentId, setTitle, setEmojiIcon, setCoverImageUrl, setLoading } =
     useEditorStore();
-  const { activePanel, shareModalOpen, commandPaletteOpen, setShareModalOpen, setCommandPaletteOpen } = useUIStore();
+  const { shareModalOpen, commandPaletteOpen, setShareModalOpen, setCommandPaletteOpen } = useUIStore();
 
   useKeyboardShortcuts(workspace.slug);
 
@@ -76,43 +73,6 @@ export function EditorPage({ document, workspace, profile, accessLevel }: Editor
             />
           )}
         </div>
-
-        {/* Right panels */}
-        <AnimatePresence>
-          {activePanel === 'comments' && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 360, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="border-l border-[var(--bg-border)] overflow-hidden"
-            >
-              <CommentPanel documentId={document.id} />
-            </motion.div>
-          )}
-          {activePanel === 'history' && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 360, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="border-l border-[var(--bg-border)] overflow-hidden"
-            >
-              <RevisionPanel documentId={document.id} />
-            </motion.div>
-          )}
-          {activePanel === 'ai' && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 360, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="border-l border-[var(--bg-border)] overflow-hidden"
-            >
-              <AiPanel documentId={document.id} />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Modals */}

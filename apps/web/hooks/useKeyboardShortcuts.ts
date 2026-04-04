@@ -9,7 +9,7 @@ import { isMac } from '@syncdoc/utils';
 
 export function useKeyboardShortcuts(workspaceSlug: string) {
   const router = useRouter();
-  const { setCommandPaletteOpen, commandPaletteOpen, activePanel, setActivePanel, shareModalOpen, setShareModalOpen } =
+  const { setCommandPaletteOpen, commandPaletteOpen, shareModalOpen, setShareModalOpen } =
     useUIStore();
   const { focusMode, toggleFocusMode } = useEditorStore();
 
@@ -17,7 +17,7 @@ export function useKeyboardShortcuts(workspaceSlug: string) {
     async (e: KeyboardEvent) => {
       const mod = isMac() ? e.metaKey : e.ctrlKey;
 
-      // Escape — close any open panel/modal, exit focus mode
+      // Escape — close any open modal, exit focus mode
       if (e.key === 'Escape') {
         if (commandPaletteOpen) {
           setCommandPaletteOpen(false);
@@ -25,10 +25,6 @@ export function useKeyboardShortcuts(workspaceSlug: string) {
         }
         if (shareModalOpen) {
           setShareModalOpen(false);
-          return;
-        }
-        if (activePanel) {
-          setActivePanel(null);
           return;
         }
         if (focusMode) {
@@ -81,7 +77,6 @@ export function useKeyboardShortcuts(workspaceSlug: string) {
       // Cmd/Ctrl + S → Force save (prevent browser save dialog)
       if (e.key === 's' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        // Hocuspocus will handle persistence; this is a no-op save indicator
         const store = useEditorStore.getState();
         store.setSaving(true);
         setTimeout(() => store.setSaving(false), 1000);
@@ -98,11 +93,9 @@ export function useKeyboardShortcuts(workspaceSlug: string) {
       router,
       commandPaletteOpen,
       shareModalOpen,
-      activePanel,
       focusMode,
       setCommandPaletteOpen,
       setShareModalOpen,
-      setActivePanel,
       toggleFocusMode,
     ]
   );

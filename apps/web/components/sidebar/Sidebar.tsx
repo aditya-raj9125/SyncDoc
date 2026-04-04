@@ -8,7 +8,7 @@ import { useUIStore } from '@/store/uiStore';
 import { STRINGS } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { FolderTree } from './FolderTree';
+import { DocumentTree } from './FolderTree';
 import { NavItem } from './NavItem';
 import type { Workspace, Profile, Folder } from '@syncdoc/types';
 import {
@@ -17,7 +17,7 @@ import {
   Star,
   Share2,
   Trash2,
-  Settings,
+  Archive,
   ChevronsLeft,
   PanelLeft,
   Plus,
@@ -25,9 +25,18 @@ import {
   Sun,
   Moon,
   Users,
+  FolderPlus,
+  ChevronRight,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { createClient } from '@/lib/supabase/client';
+
+interface SidebarDoc {
+  id: string;
+  title: string;
+  emoji_icon: string;
+  folder_id: string | null;
+}
 
 interface SidebarProps {
   workspace: Workspace;
@@ -37,11 +46,17 @@ interface SidebarProps {
   userRole: string;
 }
 
-export function Sidebar({ workspace, profile, folders, memberCount, userRole }: SidebarProps) {
+export function Sidebar({ workspace, profile, folders: initialFolders, memberCount, userRole }: SidebarProps) {
   const { sidebarOpen, sidebarWidth, setSidebarWidth, toggleSidebar, activeSection, setActiveSection } =
     useUIStore();
+  const [folders, setFolders] = useState<Folder[]>(initialFolders);
+  const [documents, setDocuments] = useState<SidebarDoc[]>([]);
+  const [sharedDocuments, setSharedDocuments] = useState<SidebarDoc[]>([]);
+  const [docsExpanded, setDocsExpanded] = useState(true);
+  const [sharedExpanded, setSharedExpanded] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [dragOverRoot, setDragOverRoot] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -54,10 +69,59 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
     setMounted(true);
   }, []);
 
+  // Fetch sidebar documents
+  useEffect(() => {
+    async function fetchDocs() {
+      const { data } = await supabase
+        .from('documents')
+        .select('id, title, emoji_icon, folder_id')
+        .eq('workspace_id', workspace.id)
+        .is('deleted_at', null)
+        .neq('status', 'archived')
+        .order('title', { ascending: true });
+
+      if (data) {
+        setDocuments(data as SidebarDoc[]);
+      }
+    }
+    fetchDocs();
+  }, [workspace.id]);
+
+  // Fetch shared documents
+  useEffect(() => {
+    async function fetchSharedDocs() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Match by document_permissions
+      const { data: permDocs } = await supabase
+        .from('document_permissions')
+        .select('document_id, documents(id, title, emoji_icon)')
+        .eq('user_id', user.id);
+
+      // Match by share_invitations (by email)
+      const { data: inviteDocs } = await supabase
+        .from('share_invitations')
+        .select('document_id, documents(id, title, emoji_icon)')
+        .eq('invited_email', user.email || '');
+
+      const allShared = [
+        ...(permDocs?.map(p => p.documents) || []),
+        ...(inviteDocs?.map(i => i.documents) || [])
+      ].filter(Boolean) as unknown as SidebarDoc[];
+
+      // De-duplicate
+      const uniqueShared = Array.from(new Map(allShared.map(d => [d.id, d])).values());
+      setSharedDocuments(uniqueShared);
+    }
+    fetchSharedDocs();
+  }, [workspace.id, profile.id]);
+
   useEffect(() => {
     if (pathname.includes('/home')) setActiveSection('home');
     else if (pathname.includes('/documents')) setActiveSection('documents');
     else if (pathname.includes('/starred')) setActiveSection('starred');
+    else if (pathname.includes('/archive')) setActiveSection('archive');
     else if (pathname.includes('/trash')) setActiveSection('trash');
   }, [pathname, setActiveSection]);
 
@@ -110,8 +174,76 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
       .single();
 
     if (!error && doc) {
+      setDocuments((prev) => [...prev, { id: doc.id, title: doc.title, emoji_icon: doc.emoji_icon, folder_id: null }]);
       router.push(`${basePath}/doc/${doc.id}`);
     }
+  }
+
+  async function handleCreateFolder() {
+    const name = prompt('Folder name:');
+    if (!name?.trim()) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('folders')
+      .insert({ workspace_id: workspace.id, name: name.trim(), created_by: user.id })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setFolders((prev) => [...prev, data]);
+    }
+  }
+
+  // Drag-and-drop: move document to a folder (or root)
+  async function handleMoveDocument(docId: string, folderId: string | null) {
+    // Optimistic update
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === docId ? { ...d, folder_id: folderId } : d))
+    );
+
+    // Persist to DB
+    const { error } = await supabase
+      .from('documents')
+      .update({ folder_id: folderId })
+      .eq('id', docId);
+
+    if (error) {
+      console.error('Failed to move document:', error);
+      // Revert on error — refetch
+      const { data } = await supabase
+        .from('documents')
+        .select('id, title, emoji_icon, folder_id')
+        .eq('workspace_id', workspace.id)
+        .is('deleted_at', null)
+        .neq('status', 'archived')
+        .order('title', { ascending: true });
+      if (data) setDocuments(data as SidebarDoc[]);
+    }
+  }
+
+  // Drop-to-root handler (on the "DOCUMENTS" header)
+  function handleRootDragOver(e: React.DragEvent) {
+    if (e.dataTransfer.types.includes('application/syncdoc-doc')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverRoot(true);
+    }
+  }
+
+  function handleRootDragLeave() {
+    setDragOverRoot(false);
+  }
+
+  function handleRootDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const docId = e.dataTransfer.getData('application/syncdoc-doc');
+    if (docId) {
+      handleMoveDocument(docId, null);
+    }
+    setDragOverRoot(false);
   }
 
   return (
@@ -124,7 +256,7 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
             animate={{ width: sidebarWidth }}
             exit={{ width: 0 }}
             transition={{ duration: 0.2 }}
-            className="relative flex h-full flex-col overflow-hidden border-r-0 bg-[var(--bg-surface)] shadow-sm"
+            className="relative flex h-full flex-col overflow-hidden border-r-0 bg-[var(--bg-surface)] shadow-sm no-print"
             style={{ minWidth: sidebarOpen ? 180 : 0 }}
           >
             <div className="flex flex-col h-full" style={{ width: sidebarWidth }}>
@@ -150,16 +282,6 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
                 </Tooltip>
               </div>
 
-              {/* New document button */}
-              <div className="px-3 py-2">
-                <button
-                  onClick={handleNewDocument}
-                  className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  {STRINGS.workspace.newDocument}
-                </button>
-              </div>
 
               {/* Navigation */}
               <nav className="flex-1 overflow-y-auto px-3 py-1">
@@ -185,8 +307,14 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
                   <NavItem
                     icon={<Share2 className="h-4 w-4" />}
                     label={STRINGS.workspace.sharedWithMe}
-                    active={false}
-                    href={`${basePath}/documents`}
+                    active={activeSection === 'shared'}
+                    href={`${basePath}/shared`}
+                  />
+                  <NavItem
+                    icon={<Archive className="h-4 w-4" />}
+                    label="Archive"
+                    active={activeSection === 'archive'}
+                    href={`${basePath}/archive`}
                   />
                   <NavItem
                     icon={<Trash2 className="h-4 w-4" />}
@@ -196,15 +324,109 @@ export function Sidebar({ workspace, profile, folders, memberCount, userRole }: 
                   />
                 </div>
 
-                {/* Folder tree */}
-                {folders.length > 0 && (
+                {/* ── SHARED WITH ME section ── */}
+                {sharedDocuments.length > 0 && (
                   <div className="mt-6">
-                    <span className="px-3 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-                      Folders
-                    </span>
-                    <FolderTree folders={folders} basePath={basePath} workspaceId={workspace.id} />
+                    <button
+                      onClick={() => setSharedExpanded(!sharedExpanded)}
+                      className="flex items-center gap-1 px-3 mb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                    >
+                      <ChevronRight className={cn('h-3 w-3 transition-transform duration-150', sharedExpanded && 'rotate-90')} />
+                      Shared with me
+                    </button>
+                    <AnimatePresence>
+                      {sharedExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="space-y-0.5"
+                        >
+                          {sharedDocuments.map((doc) => (
+                            <NavItem
+                              key={doc.id}
+                              icon={<span className="text-sm">{doc.emoji_icon}</span>}
+                              label={doc.title}
+                              href={`${basePath}/doc/${doc.id}`}
+                              active={pathname.includes(doc.id)}
+                              className="pl-6"
+                            />
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
+
+                {/* ── DOCUMENTS section ── */}
+                <div className="mt-6">
+                  {/* Section header — also a drop target to move docs to root */}
+                  <div
+                    onDragOver={handleRootDragOver}
+                    onDragLeave={handleRootDragLeave}
+                    onDrop={handleRootDrop}
+                    className={cn(
+                      'flex items-center justify-between px-3 mb-1 rounded-[var(--radius-sm)] transition-all',
+                      dragOverRoot && 'bg-[var(--brand-primary)]/10 ring-1 ring-[var(--brand-primary)] ring-inset',
+                    )}
+                  >
+                    <button
+                      onClick={() => setDocsExpanded(!docsExpanded)}
+                      className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                    >
+                      <ChevronRight className={cn('h-3 w-3 transition-transform duration-150', docsExpanded && 'rotate-90')} />
+                      Documents
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <Tooltip content="New folder">
+                        <button
+                          onClick={handleCreateFolder}
+                          className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                          aria-label="New folder"
+                        >
+                          <FolderPlus className="h-3.5 w-3.5" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="New document">
+                        <button
+                          onClick={handleNewDocument}
+                          className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                          aria-label="New document"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {docsExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
+                        {(folders.length > 0 || documents.length > 0) ? (
+                          <DocumentTree
+                            folders={folders}
+                            documents={documents}
+                            basePath={basePath}
+                            workspaceId={workspace.id}
+                            onFoldersChange={setFolders}
+                            onDocumentsChange={setDocuments}
+                            onMoveDocument={handleMoveDocument}
+                            onRemoveDocument={(id) => setDocuments((prev) => prev.filter((d) => d.id !== id))}
+                          />
+                        ) : (
+                          <p className="px-3 py-2 text-xs text-[var(--text-tertiary)]">No documents yet</p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </nav>
 
               {/* Bottom section */}

@@ -139,6 +139,7 @@ export interface AwarenessUser {
   name: string;
   color: string;
   avatar_url: string | null;
+  user?: Profile; // Reference to the full profile
 }
 
 export interface AwarenessCursor {
@@ -205,9 +206,10 @@ export type SidebarSection =
   | 'documents'
   | 'starred'
   | 'shared'
+  | 'archive'
   | 'trash';
 
-export type PanelType = 'comments' | 'history' | 'ai' | null;
+
 
 // ---- API Response Types ----
 

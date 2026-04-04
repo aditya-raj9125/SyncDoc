@@ -1,20 +1,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { HomeContent } from '@/components/workspace/HomeContent';
+import { DocumentsListContent } from '@/components/workspace/DocumentsListContent';
 
-interface HomePageProps {
-  params: { slug: string };
-}
-
-export default async function HomePage({ params }: HomePageProps) {
+export default async function ArchivePage({ params }: { params: { slug: string } }) {
   const supabase = createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Fetch workspace
   const { data: workspace } = await supabase
     .from('workspaces')
     .select('*')
@@ -23,23 +15,14 @@ export default async function HomePage({ params }: HomePageProps) {
 
   if (!workspace) redirect('/');
 
-  // Fetch profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
-  // Fetch recent documents
-  const { data: recentDocs } = await supabase
+  const { data: documents } = await supabase
     .from('documents')
     .select('*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color)')
     .eq('workspace_id', workspace.id)
+    .eq('status', 'archived')
     .is('deleted_at', null)
-    .order('last_edited_at', { ascending: false })
-    .limit(5);
+    .order('last_edited_at', { ascending: false });
 
-  // Fetch starred documents to show star status in list
   const { data: starredDocs } = await supabase
     .from('starred_documents')
     .select('document_id')
@@ -48,11 +31,13 @@ export default async function HomePage({ params }: HomePageProps) {
   const starredIds = new Set(starredDocs?.map((s) => s.document_id) || []);
 
   return (
-    <HomeContent
+    <DocumentsListContent
       workspace={workspace}
-      profile={profile!}
-      recentDocuments={(recentDocs as any) ?? []}
+      documents={(documents as any) ?? []}
       starredIds={starredIds}
+      title="Archive"
+      emptyMessage="No archived documents"
+      emptyHint="Archive documents you want to keep but don't need in your workspace"
     />
   );
 }

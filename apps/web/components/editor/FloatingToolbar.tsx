@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { BubbleMenu } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Bold,
   Italic,
@@ -13,8 +13,6 @@ import {
   Link2,
   Paintbrush,
   Highlighter,
-  MessageSquare,
-  Sparkles,
 } from 'lucide-react';
 
 interface FloatingToolbarProps {
@@ -27,17 +25,6 @@ const HIGHLIGHT_COLORS = [
   { label: 'Blue', value: '#BFDBFE' },
   { label: 'Pink', value: '#FBCFE8' },
   { label: 'Orange', value: '#FED7AA' },
-];
-
-const TEXT_COLORS = [
-  { label: 'Default', value: 'inherit' },
-  { label: 'Gray', value: '#78716C' },
-  { label: 'Red', value: '#EF4444' },
-  { label: 'Orange', value: '#F97316' },
-  { label: 'Yellow', value: '#EAB308' },
-  { label: 'Green', value: '#22C55E' },
-  { label: 'Blue', value: '#3B82F6' },
-  { label: 'Purple', value: '#8B5CF6' },
 ];
 
 type ToolbarButton = {
@@ -107,7 +94,7 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
     {
       icon: <Paintbrush size={16} />,
       label: 'Text color',
-      action: () => {}, // handled via dropdown below
+      action: () => {},
       isActive: false,
     },
     {
@@ -117,19 +104,6 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
         editor.chain().focus().toggleHighlight({ color: '#FEF08A' }).run();
       },
       isActive: editor.isActive('highlight'),
-    },
-    'separator',
-    {
-      icon: <MessageSquare size={16} />,
-      label: 'Comment',
-      action: () => {/* TODO: open comment popover */},
-      isActive: false,
-    },
-    {
-      icon: <Sparkles size={16} />,
-      label: 'AI',
-      action: () => {/* TODO: open AI selection menu */},
-      isActive: false,
     },
   ];
 

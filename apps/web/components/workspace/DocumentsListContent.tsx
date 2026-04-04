@@ -23,7 +23,7 @@ interface DocumentsListContentProps {
 
 export function DocumentsListContent({
   workspace,
-  documents,
+  documents: initialDocuments,
   starredIds = new Set(),
   isTrash = false,
   title,
@@ -33,17 +33,27 @@ export function DocumentsListContent({
 }: DocumentsListContentProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [localDocuments, setLocalDocuments] = useState(initialDocuments);
   const basePath = `/workspace/${workspace.slug}`;
+
+  useEffect(() => {
+    setLocalDocuments(initialDocuments);
+  }, [initialDocuments]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const handleActionComplete = (docId: string) => {
+    setLocalDocuments((prev) => prev.filter((d) => d.id !== docId));
+    onRefresh?.();
+  };
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-xl font-semibold mb-8">{title}</h1>
 
-      {documents.length === 0 ? (
+      {localDocuments.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="mb-4 rounded-full bg-[var(--bg-elevated)] p-4">
             <FileText className="h-8 w-8 text-[var(--text-tertiary)]" />
@@ -61,7 +71,7 @@ export function DocumentsListContent({
             <div />
           </div>
 
-          {documents.map((doc, i) => (
+          {localDocuments.map((doc, i) => (
             <motion.div
               key={doc.id}
               initial={{ opacity: 0, y: 5 }}
@@ -115,7 +125,7 @@ export function DocumentsListContent({
                   workspace={workspace}
                   isStarred={starredIds.has(doc.id)}
                   isTrash={isTrash}
-                  onActionComplete={onRefresh}
+                  onActionComplete={() => handleActionComplete(doc.id)}
                 />
               </div>
             </motion.div>

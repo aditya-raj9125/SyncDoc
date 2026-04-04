@@ -7,21 +7,15 @@ interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   active: boolean;
-  href: string;
+  href?: string;
   count?: number;
+  onClick?: () => void;
+  className?: string;
 }
 
-export function NavItem({ icon, label, active, href, count }: NavItemProps) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'flex items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-[9px] text-sm transition-colors',
-        active
-          ? 'bg-indigo-50 text-[var(--brand-primary)] dark:bg-indigo-950/30'
-          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
-      )}
-    >
+export function NavItem({ icon, label, active, href, count, onClick, className }: NavItemProps) {
+  const content = (
+    <>
       <span className={cn(active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-tertiary)]')}>
         {icon}
       </span>
@@ -31,6 +25,28 @@ export function NavItem({ icon, label, active, href, count }: NavItemProps) {
           {count}
         </span>
       ) : null}
-    </Link>
+    </>
+  );
+
+  const classes = cn(
+    'flex items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-[9px] text-sm transition-colors cursor-pointer',
+    active
+      ? 'bg-indigo-50 text-[var(--brand-primary)] dark:bg-indigo-950/30'
+      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
+    className
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={classes} onClick={onClick}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={classes} onClick={onClick}>
+      {content}
+    </div>
   );
 }
