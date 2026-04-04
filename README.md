@@ -3,6 +3,11 @@
   <p align="center">A production-grade, real-time collaborative document editor — built with Next.js 14, Tiptap, Yjs, and Supabase.</p>
 </p>
 
+> [!IMPORTANT]
+> **Test Accounts for Judges:**
+> - **Account 1:** `test@gmail.com` / `test`
+> - **Account 2:** `test2@gmail.com` / `test`
+
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-14-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/TypeScript-Strict-blue?logo=typescript" alt="TypeScript" />
