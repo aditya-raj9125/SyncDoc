@@ -8,7 +8,7 @@ let indexedDbProviders = new Map<string, IndexeddbPersistence>();
 
 interface ProviderConfig {
   documentId: string;
-  token: string;
+  token?: string | null;
   onStatus?: (status: ConnectionStatus) => void;
   onSynced?: () => void;
 }

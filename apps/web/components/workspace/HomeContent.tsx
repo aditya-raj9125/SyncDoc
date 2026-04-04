@@ -9,6 +9,7 @@ import mammoth from 'mammoth';
 import { STRINGS } from '@/lib/constants';
 import { getGreeting, formatRelativeTime, getReadingTime, formatWordCount, getDocumentColor } from '@syncdoc/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { DocumentCardSkeleton } from '@/components/ui/Skeleton';
 import { createClient } from '@/lib/supabase/client';
 import { DocumentActions } from './DocumentActions';
@@ -91,12 +92,15 @@ export function HomeContent({
       let content = '';
       const extension = file.name.split('.').pop()?.toLowerCase();
 
-      if (extension === 'docx' || extension === 'doc') {
+      if (extension === 'docx') {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
-      } else {
+      } else if (extension === 'txt' || extension === 'md') {
         content = await file.text();
+      } else {
+        toast.error(`Unsupported format: .${extension}. Please use .docx, .txt, or .md`);
+        return;
       }
 
       // Create a Yjs document and populate it
@@ -106,8 +110,10 @@ export function HomeContent({
       
       // Encode state as update and convert to base64 for Supabase
       const state = Y.encodeStateAsUpdate(ydoc);
+      
+      // Robust binary-to-base64 conversion for browser
       const base64State = btoa(
-        String.fromCharCode(...new Uint8Array(state))
+        new Uint8Array(state).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
       // Derive title from filename
@@ -144,14 +150,24 @@ export function HomeContent({
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      {/* Greeting */}
-      <motion.h1
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-2xl font-semibold mb-8"
-      >
-        {mounted ? greeting : `Welcome, ${profile.display_name}`}
-      </motion.h1>
+      {/* Header with Greeting and Theme Toggle */}
+      <div className="flex items-center justify-between mb-8">
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-2xl font-semibold"
+        >
+          {mounted ? greeting : `Welcome, ${profile.display_name}`}
+        </motion.h1>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <ThemeToggle />
+        </motion.div>
+      </div>
 
       {/* Action Cards — New Document + Upload Document */}
       <motion.div
@@ -191,7 +207,7 @@ export function HomeContent({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".doc,.docx,.txt,.md,.rtf"
+          accept=".docx,.txt,.md"
           onChange={handleUploadDocument}
           className="hidden"
           aria-label="Upload document file"

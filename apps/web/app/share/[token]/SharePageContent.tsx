@@ -72,7 +72,7 @@ export function SharePageContent({
 
       const { provider, ydoc: yDoc } = createProvider({
         documentId: document.id,
-        token: jwtToken,
+        token: jwtToken || null,
         onStatus(status) {
           console.log('[SharePage] Connection status:', status);
         },
