@@ -54,6 +54,7 @@ export function EditorPage({ document, workspace, profile, accessLevel }: Editor
               document={document}
               workspace={workspace}
               profile={profile}
+              accessLevel={accessLevel}
             />
           </motion.div>
         )}

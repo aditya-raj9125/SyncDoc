@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/Toast';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import type { Document, Workspace, Profile } from '@syncdoc/types';
+import type { AccessLevel } from '@/lib/permissions';
 import {
   ArrowLeft,
   Share2,
@@ -34,9 +35,10 @@ interface EditorTopbarProps {
   document: Document;
   workspace: Workspace;
   profile: Profile;
+  accessLevel?: AccessLevel;
 }
 
-export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbarProps) {
+export function EditorTopbar({ document: doc, workspace, profile, accessLevel = 'owner' }: EditorTopbarProps) {
   const router = useRouter();
   const { wordCount, isSaving, focusMode, toggleFocusMode, connectionStatus } = useEditorStore();
   const { setShareModalOpen } = useUIStore();
@@ -48,6 +50,12 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
   const readingTime = getReadingTime(wordCount);
   const localClientId = usePresenceStore((s) => s.localClientId);
   
+  // Derive permission flags from accessLevel
+  const isOwner = accessLevel === 'owner';
+  const canEdit = accessLevel === 'edit' || accessLevel === 'owner';
+  const canShare = isOwner; // Only owners can share further
+  const canModifyDoc = isOwner; // Only owners can delete, archive, move
+
   // Filter out local user from the display list
   const otherUsers = Array.from(users.entries())
     .filter(([clientId]) => clientId !== localClientId)
@@ -58,19 +66,23 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
 
   useEffect(() => {
     async function checkStarred() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const { data } = await supabase
-        .from('starred_documents')
-        .select('id')
-        .eq('document_id', doc.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        const { data } = await supabase
+          .from('starred_documents')
+          .select('id')
+          .eq('document_id', doc.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      setIsStarred(!!data);
+        setIsStarred(!!data);
+      } catch (err) {
+        console.error('Error checking starred status:', err);
+      }
     }
     checkStarred();
   }, [doc.id, supabase]);
@@ -89,16 +101,23 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
           .delete()
           .eq('document_id', doc.id)
           .eq('user_id', user.id);
-        if (error) setIsStarred(true);
+        if (error) {
+          setIsStarred(true);
+          toast.error('Failed to remove star');
+        }
       } else {
         setIsStarred(true);
         const { error } = await supabase
           .from('starred_documents')
           .insert({ document_id: doc.id, user_id: user.id });
-        if (error) setIsStarred(false);
+        if (error) {
+          setIsStarred(false);
+          toast.error('Failed to star document');
+        }
       }
     } catch (err) {
       console.error('Error toggling star:', err);
+      toast.error('Something went wrong while updating star');
     }
   }
 
@@ -136,7 +155,7 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
       toast.success('PDF downloaded');
     } catch (err) {
       console.error('PDF export error:', err);
-      toast.error('Failed to export PDF');
+      toast.error('Failed to export PDF. Please try again.');
     }
   }
 
@@ -156,6 +175,11 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
       const text = editorElement.textContent || '';
       const lines = text.split('\n').filter(l => l.trim() !== '');
 
+      if (lines.length === 0) {
+        toast.error('Document is empty — nothing to export');
+        return;
+      }
+
       const docxObj = new Document({
         sections: [
           {
@@ -173,55 +197,90 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
       toast.success('Word document downloaded');
     } catch (err) {
       console.error('DOCX export error:', err);
-      toast.error('Failed to export Word document');
+      toast.error('Failed to export Word document. Please try again.');
     }
   }
 
   async function handleDuplicate() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be signed in to duplicate a document');
+        return;
+      }
 
-    const { data: newDoc, error } = await supabase
-      .from('documents')
-      .insert({
-        workspace_id: doc.workspace_id,
-        folder_id: doc.folder_id,
-        title: `${doc.title} (copy)`,
-        emoji_icon: doc.emoji_icon,
-        owner_id: user.id,
-        source_type: 'blank',
-        ydoc_state: doc.ydoc_state,
-        content: (doc as any).content,
-      })
-      .select()
-      .single();
+      const { data: newDoc, error } = await supabase
+        .from('documents')
+        .insert({
+          workspace_id: doc.workspace_id,
+          folder_id: doc.folder_id,
+          title: `${doc.title} (copy)`,
+          emoji_icon: doc.emoji_icon,
+          owner_id: user.id,
+          source_type: 'blank',
+          ydoc_state: doc.ydoc_state,
+          content: (doc as any).content,
+        })
+        .select()
+        .single();
 
-    if (!error && newDoc) {
-      router.push(`/workspace/${workspace.slug}/doc/${newDoc.id}`);
+      if (error) {
+        console.error('Duplicate error:', error);
+        toast.error('Failed to duplicate document');
+        return;
+      }
+
+      if (newDoc) {
+        toast.success('Document duplicated');
+        router.push(`/workspace/${workspace.slug}/doc/${newDoc.id}`);
+      }
+    } catch (err) {
+      console.error('Duplicate error:', err);
+      toast.error('Something went wrong while duplicating');
     }
   }
 
   async function handleArchive() {
     if (!confirm('Archive this document?')) return;
-    const { error } = await supabase
-      .from('documents')
-      .update({ status: 'archived' })
-      .eq('id', doc.id);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ status: 'archived' })
+        .eq('id', doc.id);
 
-    if (!error) {
+      if (error) {
+        console.error('Archive error:', error);
+        toast.error('Failed to archive document');
+        return;
+      }
+
+      toast.success('Document archived');
       router.push(`/workspace/${workspace.slug}/home`);
+    } catch (err) {
+      console.error('Archive error:', err);
+      toast.error('Something went wrong while archiving');
     }
   }
 
   async function handleDelete() {
     if (!confirm('Move this document to trash?')) return;
-    const { error } = await supabase
-      .from('documents')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', doc.id);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', doc.id);
 
-    if (!error) {
+      if (error) {
+        console.error('Delete error:', error);
+        toast.error('Failed to move document to trash');
+        return;
+      }
+
+      toast.success('Moved to trash');
       router.push(`/workspace/${workspace.slug}/home`);
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Something went wrong while deleting');
     }
   }
 
@@ -246,7 +305,7 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
           </button>
         </Tooltip>
 
-        {/* Star */}
+        {/* Star — available for all authenticated users */}
         <Tooltip content={isStarred ? 'Remove from starred' : 'Add to starred'}>
           <button
             onClick={toggleStar}
@@ -322,11 +381,13 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
           </button>
         </Tooltip>
 
-        {/* Share button */}
-        <Button size="sm" onClick={() => setShareModalOpen(true)}>
-          <Share2 size={14} className="mr-1.5" />
-          Share
-        </Button>
+        {/* Share button — only for document owners */}
+        {canShare && (
+          <Button size="sm" onClick={() => setShareModalOpen(true)}>
+            <Share2 size={14} className="mr-1.5" />
+            Share
+          </Button>
+        )}
 
       {/* More options */}
       <Dropdown>
@@ -339,6 +400,7 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
           </button>
         </DropdownTrigger>
         <DropdownContent align="end">
+          {/* Download — available for ALL users */}
           <DropdownItem onSelect={handleExportPDF}>
             <FileDown size={14} />
             Export as PDF
@@ -352,23 +414,31 @@ export function EditorTopbar({ document: doc, workspace, profile }: EditorTopbar
             Print
           </DropdownItem>
           <DropdownSeparator />
-          <DropdownItem onSelect={handleDuplicate}>
-            <Copy size={14} />
-            Duplicate
-          </DropdownItem>
-          <DropdownItem onSelect={() => setMoveModalOpen(true)}>
-            <FolderInput size={14} />
-            Move to folder
-          </DropdownItem>
-          <DropdownSeparator />
-          <DropdownItem onSelect={handleArchive}>
-            <Archive size={14} />
-            Archive
-          </DropdownItem>
-          <DropdownItem onSelect={handleDelete} className="text-red-600 dark:text-red-400">
-            <Trash2 size={14} />
-            Delete
-          </DropdownItem>
+          {/* Duplicate — available for editors and owners */}
+          {canEdit && (
+            <DropdownItem onSelect={handleDuplicate}>
+              <Copy size={14} />
+              Duplicate
+            </DropdownItem>
+          )}
+          {/* Move/Archive/Delete — only for document owners */}
+          {canModifyDoc && (
+            <>
+              <DropdownItem onSelect={() => setMoveModalOpen(true)}>
+                <FolderInput size={14} />
+                Move to folder
+              </DropdownItem>
+              <DropdownSeparator />
+              <DropdownItem onSelect={handleArchive}>
+                <Archive size={14} />
+                Archive
+              </DropdownItem>
+              <DropdownItem onSelect={handleDelete} className="text-red-600 dark:text-red-400">
+                <Trash2 size={14} />
+                Delete
+              </DropdownItem>
+            </>
+          )}
         </DropdownContent>
       </Dropdown>
       </div>

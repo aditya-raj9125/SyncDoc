@@ -28,6 +28,7 @@ export function ShareModal({ open, onOpenChange, document: doc, workspace }: Sha
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkAccess, setLinkAccess] = useState<AccessLevel | 'none'>('none');
   const [isPublished, setIsPublished] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const supabase = createBrowserClient();
 
   useEffect(() => {
@@ -37,65 +38,97 @@ export function ShareModal({ open, onOpenChange, document: doc, workspace }: Sha
   }, [open, doc.id]);
 
   const loadShareSettings = async () => {
-    // Fetch fresh document data to get current share settings
-    const { data: freshDoc } = await supabase
-      .from('documents')
-      .select('is_public, public_access')
-      .eq('id', doc.id)
-      .single();
-      
-    if (freshDoc) {
-      // Filter out 'comment' if it somehow exists in DB
-      const access = freshDoc.public_access === 'comment' ? 'view' : freshDoc.public_access;
-      setLinkAccess(access === 'none' ? 'none' : (access as AccessLevel));
-      setIsPublished(freshDoc.is_public);
+    setIsLoading(true);
+    try {
+      // Fetch fresh document data to get current share settings
+      const { data: freshDoc, error } = await supabase
+        .from('documents')
+        .select('is_public, public_access')
+        .eq('id', doc.id)
+        .single();
+
+      if (error) {
+        console.error('Failed to load share settings:', error);
+        toast.error('Failed to load sharing settings');
+        return;
+      }
+        
+      if (freshDoc) {
+        // Filter out 'comment' if it somehow exists in DB
+        const access = freshDoc.public_access === 'comment' ? 'view' : freshDoc.public_access;
+        setLinkAccess(access === 'none' ? 'none' : (access as AccessLevel));
+        setIsPublished(freshDoc.is_public);
+      }
+    } catch (err) {
+      console.error('Error loading share settings:', err);
+      toast.error('Something went wrong loading share settings');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Persist link access changes to Supabase
   const updatePublicAccess = useCallback(async (access: AccessLevel | 'none') => {
-    const isPublic = access !== 'none';
-    const { error } = await supabase
-      .from('documents')
-      .update({
-        is_public: isPublic,
-        public_access: access,
-      })
-      .eq('id', doc.id);
+    try {
+      const isPublic = access !== 'none';
+      const { error } = await supabase
+        .from('documents')
+        .update({
+          is_public: isPublic,
+          public_access: access,
+        })
+        .eq('id', doc.id);
 
-    if (error) {
-      console.error('Failed to update sharing settings:', error);
-      toast.error('Failed to update sharing settings');
-      return;
+      if (error) {
+        console.error('Failed to update sharing settings:', error);
+        toast.error('Failed to update sharing settings');
+        return;
+      }
+      setLinkAccess(access);
+      toast.success(access === 'none' ? 'Link sharing disabled' : `Link access set to "${access}"`);
+    } catch (err) {
+      console.error('Error updating sharing settings:', err);
+      toast.error('Something went wrong updating sharing settings');
     }
-    setLinkAccess(access);
   }, [doc.id, supabase]);
 
   // Persist publish toggle to Supabase
   const togglePublish = useCallback(async () => {
-    const newPublished = !isPublished;
-    const { error } = await supabase
-      .from('documents')
-      .update({
-        is_public: newPublished,
-        public_access: newPublished ? 'view' : 'none',
-        status: newPublished ? 'published' : 'draft',
-      })
-      .eq('id', doc.id);
+    try {
+      const newPublished = !isPublished;
+      const { error } = await supabase
+        .from('documents')
+        .update({
+          is_public: newPublished,
+          public_access: newPublished ? 'view' : 'none',
+          status: newPublished ? 'published' : 'draft',
+        })
+        .eq('id', doc.id);
 
-    if (error) {
-      console.error('Failed to update publish state:', error);
-      toast.error('Failed to update publish state');
-      return;
+      if (error) {
+        console.error('Failed to update publish state:', error);
+        toast.error('Failed to update publish state');
+        return;
+      }
+      setIsPublished(newPublished);
+      if (!newPublished) setLinkAccess('none');
+      toast.success(newPublished ? 'Document published' : 'Document unpublished');
+    } catch (err) {
+      console.error('Error toggling publish:', err);
+      toast.error('Something went wrong updating publish state');
     }
-    setIsPublished(newPublished);
-    if (!newPublished) setLinkAccess('none');
   }, [doc.id, isPublished, supabase]);
 
   const handleCopyLink = (url: string) => {
-    navigator.clipboard.writeText(url);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+    try {
+      navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      toast.success('Link copied to clipboard');
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+      toast.error('Failed to copy link');
+    }
   };
 
   return (
@@ -134,7 +167,8 @@ export function ShareModal({ open, onOpenChange, document: doc, workspace }: Sha
             <select
               value={linkAccess}
               onChange={(e) => updatePublicAccess(e.target.value as AccessLevel | 'none')}
-              className="rounded-[var(--radius-md)] border border-[var(--bg-border)] bg-[var(--bg-canvas)] px-3 py-2 text-sm text-[var(--text-secondary)]"
+              disabled={isLoading}
+              className="rounded-[var(--radius-md)] border border-[var(--bg-border)] bg-[var(--bg-canvas)] px-3 py-2 text-sm text-[var(--text-secondary)] disabled:opacity-50"
             >
               <option value="none">No access</option>
               <option value="view">Can view</option>
@@ -173,7 +207,8 @@ export function ShareModal({ open, onOpenChange, document: doc, workspace }: Sha
             </div>
             <button
               onClick={togglePublish}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
+              disabled={isLoading}
+              className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-50 ${
                 isPublished ? 'bg-[var(--brand-primary)]' : 'bg-[var(--bg-border)]'
               }`}
             >

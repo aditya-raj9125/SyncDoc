@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { toast } from '@/components/ui/Toast';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -72,16 +73,24 @@ export function Sidebar({ workspace, profile, folders: initialFolders, memberCou
   // Fetch sidebar documents
   useEffect(() => {
     async function fetchDocs() {
-      const { data } = await supabase
-        .from('documents')
-        .select('id, title, emoji_icon, folder_id')
-        .eq('workspace_id', workspace.id)
-        .is('deleted_at', null)
-        .neq('status', 'archived')
-        .order('title', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('documents')
+          .select('id, title, emoji_icon, folder_id')
+          .eq('workspace_id', workspace.id)
+          .is('deleted_at', null)
+          .neq('status', 'archived')
+          .order('title', { ascending: true });
 
-      if (data) {
-        setDocuments(data as SidebarDoc[]);
+        if (error) {
+          console.error('Failed to fetch documents:', error);
+          return;
+        }
+        if (data) {
+          setDocuments(data as SidebarDoc[]);
+        }
+      } catch (err) {
+        console.error('Error fetching sidebar documents:', err);
       }
     }
     fetchDocs();
@@ -90,29 +99,36 @@ export function Sidebar({ workspace, profile, folders: initialFolders, memberCou
   // Fetch shared documents
   useEffect(() => {
     async function fetchSharedDocs() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      // Match by document_permissions
-      const { data: permDocs } = await supabase
-        .from('document_permissions')
-        .select('document_id, documents(id, title, emoji_icon)')
-        .eq('user_id', user.id);
+        // Parallelize both queries
+        const [permResult, inviteResult] = await Promise.all([
+          supabase
+            .from('document_permissions')
+            .select('document_id, documents(id, title, emoji_icon)')
+            .eq('user_id', user.id),
+          supabase
+            .from('share_invitations')
+            .select('document_id, documents(id, title, emoji_icon)')
+            .eq('invited_email', user.email || ''),
+        ]);
 
-      // Match by share_invitations (by email)
-      const { data: inviteDocs } = await supabase
-        .from('share_invitations')
-        .select('document_id, documents(id, title, emoji_icon)')
-        .eq('invited_email', user.email || '');
+        if (permResult.error) console.error('Error fetching permitted docs:', permResult.error);
+        if (inviteResult.error) console.error('Error fetching invited docs:', inviteResult.error);
 
-      const allShared = [
-        ...(permDocs?.map(p => p.documents) || []),
-        ...(inviteDocs?.map(i => i.documents) || [])
-      ].filter(Boolean) as unknown as SidebarDoc[];
+        const allShared = [
+          ...(permResult.data?.map(p => p.documents) || []),
+          ...(inviteResult.data?.map(i => i.documents) || [])
+        ].filter(Boolean) as unknown as SidebarDoc[];
 
-      // De-duplicate
-      const uniqueShared = Array.from(new Map(allShared.map(d => [d.id, d])).values());
-      setSharedDocuments(uniqueShared);
+        // De-duplicate
+        const uniqueShared = Array.from(new Map(allShared.map(d => [d.id, d])).values());
+        setSharedDocuments(uniqueShared);
+      } catch (err) {
+        console.error('Error fetching shared documents:', err);
+      }
     }
     fetchSharedDocs();
   }, [workspace.id, profile.id]);
@@ -151,31 +167,50 @@ export function Sidebar({ workspace, profile, folders: initialFolders, memberCou
   }, [isResizing, setSidebarWidth]);
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch (err) {
+      console.error('Error signing out:', err);
+      toast.error('Failed to sign out. Please try again.');
+    }
   }
 
   async function handleNewDocument() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be signed in to create a document');
+        return;
+      }
 
-    const { data: doc, error } = await supabase
-      .from('documents')
-      .insert({
-        workspace_id: workspace.id,
-        owner_id: user.id,
-        title: 'Untitled',
-        source_type: 'blank',
-      })
-      .select()
-      .single();
+      const { data: doc, error } = await supabase
+        .from('documents')
+        .insert({
+          workspace_id: workspace.id,
+          owner_id: user.id,
+          title: 'Untitled',
+          source_type: 'blank',
+        })
+        .select()
+        .single();
 
-    if (!error && doc) {
-      setDocuments((prev) => [...prev, { id: doc.id, title: doc.title, emoji_icon: doc.emoji_icon, folder_id: null }]);
-      router.push(`${basePath}/doc/${doc.id}`);
+      if (error) {
+        console.error('Error creating document:', error);
+        toast.error('Failed to create document');
+        return;
+      }
+
+      if (doc) {
+        setDocuments((prev) => [...prev, { id: doc.id, title: doc.title, emoji_icon: doc.emoji_icon, folder_id: null }]);
+        router.push(`${basePath}/doc/${doc.id}`);
+      }
+    } catch (err) {
+      console.error('Error creating document:', err);
+      toast.error('Something went wrong creating the document');
     }
   }
 
@@ -183,17 +218,32 @@ export function Sidebar({ workspace, profile, folders: initialFolders, memberCou
     const name = prompt('Folder name:');
     if (!name?.trim()) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be signed in to create a folder');
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from('folders')
-      .insert({ workspace_id: workspace.id, name: name.trim(), created_by: user.id })
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('folders')
+        .insert({ workspace_id: workspace.id, name: name.trim(), created_by: user.id })
+        .select()
+        .single();
 
-    if (!error && data) {
-      setFolders((prev) => [...prev, data]);
+      if (error) {
+        console.error('Error creating folder:', error);
+        toast.error('Failed to create folder');
+        return;
+      }
+
+      if (data) {
+        setFolders((prev) => [...prev, data]);
+        toast.success(`Folder "${name.trim()}" created`);
+      }
+    } catch (err) {
+      console.error('Error creating folder:', err);
+      toast.error('Something went wrong creating the folder');
     }
   }
 

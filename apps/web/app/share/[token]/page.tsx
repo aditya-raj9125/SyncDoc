@@ -1,6 +1,15 @@
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { SharePageContent } from './SharePageContent';
+
+// Admin client that bypasses RLS — for workspace slug lookup only
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
 interface SharePageProps {
   params: { token: string };
@@ -12,7 +21,7 @@ export default async function SharePage({ params }: SharePageProps) {
   // Find the document by share token
   const { data: document, error } = await supabase
     .from('documents')
-    .select('id, title, emoji_icon, workspace_id, content, is_public, public_access, workspaces(slug)')
+    .select('id, title, emoji_icon, workspace_id, content, is_public, public_access')
     .eq('share_token', params.token)
     .single();
 
@@ -44,29 +53,44 @@ export default async function SharePage({ params }: SharePageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // GUEST ACCESS: Remove the redirect that forced login for edit access.
-  // if (accessLevel === 'edit' && !user) {
-  //   redirect(`/login?next=/share/${params.token}`);
-  // }
+  // AUTHENTICATED USER: Grant permissions and redirect to full workspace editor
+  if (user) {
+    // Insert document_permissions if not already present
+    // Use admin client since the user might not have INSERT permission yet
+    const adminClient = createAdminClient();
 
-  // If user is authenticated, add to document_permissions if not already
-  if (user && document) {
-    const { data: existingPerm } = await supabase
-      .from('document_permissions')
-      .select('document_id')
-      .eq('document_id', document.id)
-      .eq('user_id', user.id)
+    try {
+      const { data: existingPerm } = await adminClient
+        .from('document_permissions')
+        .select('document_id')
+        .eq('document_id', document.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (!existingPerm) {
+        await adminClient.from('document_permissions').insert({
+          document_id: document.id,
+          user_id: user.id,
+          access: accessLevel,
+        });
+      }
+    } catch (err) {
+      console.error('[SharePage] Error inserting document_permissions:', err);
+    }
+
+    // Get workspace slug using admin client (bypasses RLS)
+    const { data: workspace } = await adminClient
+      .from('workspaces')
+      .select('slug')
+      .eq('id', document.workspace_id)
       .single();
 
-    if (!existingPerm) {
-      await supabase.from('document_permissions').insert({
-        document_id: document.id,
-        user_id: user.id,
-        access: accessLevel,
-      });
+    if (workspace?.slug) {
+      redirect(`/workspace/${workspace.slug}/doc/${document.id}`);
     }
   }
 
+  // UNAUTHENTICATED USER: Show the bare share view with sign-in prompt
   return (
     <SharePageContent
       document={document}

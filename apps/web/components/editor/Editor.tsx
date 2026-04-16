@@ -90,25 +90,32 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
     let mounted = true;
 
     async function initProvider() {
-      // Get fresh JWT from Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      try {
+        // Get fresh JWT from Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
 
-      const { provider, ydoc: yDoc } = createProvider({
-        documentId: doc.id,
-        token,
-        onStatus(status) {
-          if (mounted) setConnectionStatus(status);
-        },
-        onSynced() {
-          console.log('[Editor] Yjs synced for', doc.id);
-        },
-      });
+        const { provider, ydoc: yDoc } = createProvider({
+          documentId: doc.id,
+          token,
+          onStatus(status) {
+            if (mounted) setConnectionStatus(status);
+          },
+          onSynced() {
+            console.log('[Editor] Yjs synced for', doc.id);
+          },
+        });
 
-      if (mounted) {
-        ydocRef.current = yDoc;
-        setYdoc(yDoc);
-        setHocusProvider(provider);
+        if (mounted) {
+          ydocRef.current = yDoc;
+          setYdoc(yDoc);
+          setHocusProvider(provider);
+        }
+      } catch (err) {
+        console.error('[Editor] Failed to initialize collaboration provider:', err);
+        if (mounted) {
+          setConnectionStatus('disconnected');
+        }
       }
     }
 
@@ -116,7 +123,11 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
 
     return () => {
       mounted = false;
-      destroyProvider(doc.id);
+      try {
+        destroyProvider(doc.id);
+      } catch (err) {
+        console.error('[Editor] Error destroying provider:', err);
+      }
       ydocRef.current = null;
       setHocusProvider(null);
     };

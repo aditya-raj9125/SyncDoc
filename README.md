@@ -267,6 +267,198 @@ Use Supabase's hosted platform. Migrations are applied via `supabase db push`. E
 
 ---
 
+## Architecture Diagram
+
+```
+┌───────────────┐       ┌──────────────────┐       ┌───────────────┐
+│   Browser A   │◄─────►│   Hocuspocus     │◄─────►│   Browser B   │
+│  (Next.js)    │  WSS  │  WebSocket Srv   │  WSS  │  (Next.js)    │
+│  + IndexedDB  │       │  + Yjs Doc       │       │  + IndexedDB  │
+└───────┬───────┘       └────────┬─────────┘       └───────┬───────┘
+        │                        │                          │
+        │ HTTPS                  │ Service Role             │ HTTPS
+        ▼                        ▼                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                        Supabase                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐│
+│  │PostgreSQL│  │   Auth   │  │ Storage  │  │ Edge Functions   ││
+│  │  + RLS   │  │  (JWT)   │  │ (files)  │  │ (AI, email, etc) ││
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘│
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Data flow:**
+1. User authenticates via Supabase Auth → receives JWT
+2. Next.js App Router pages fetch data from Supabase (server-side) with RLS
+3. Editor connects to Hocuspocus via WebSocket with JWT for authentication
+4. Yjs CRDT handles conflict-free real-time document syncing
+5. Hocuspocus persists document snapshots back to Supabase PostgreSQL
+6. IndexedDB provides local offline cache per document
+
+---
+
+## API Documentation
+
+### Sharing & Collaboration Flow
+
+SyncDoc uses a multi-layer sharing system inspired by Google Docs:
+
+#### 1. Share Link Flow
+
+```
+Owner clicks "Share" → Sets access level (view/edit) → Share link generated
+                                                            │
+Recipient clicks link ──► /share/[token] (Server Page)
+                                │
+                    ┌───────────┴───────────┐
+                    │                       │
+             Authenticated?            Not Authenticated
+                    │                       │
+         Insert document_permissions    Show sign-in prompt
+         Redirect to full editor        with share link return URL
+         /workspace/{slug}/doc/{id}
+```
+
+**Key endpoints:**
+- `GET /share/[token]` — Resolves the share token, grants `document_permissions`, redirects to full workspace editor
+- The receiver gets the **same full editor experience** as the owner — toolbar, download, star, etc.
+- Destructive actions (delete, archive, move) are hidden for non-owners
+
+#### 2. Permission Resolution Priority
+
+```
+1. Owner (documents.owner_id = user_id)           → full access
+2. Document Permissions (document_permissions)      → granted access level
+3. Workspace Membership (workspace_members.role)    → role-based access
+4. Share Invitations (share_invitations by email)   → invitation access level
+5. Public Access (documents.is_public)              → public_access level
+6. Fallback                                         → no access
+```
+
+#### 3. WebSocket Authentication (Hocuspocus)
+
+The Hocuspocus server authenticates every WebSocket connection:
+
+| Scenario | Auth Method | Result |
+|---|---|---|
+| Valid JWT + Owner | Token → Supabase `getUser()` → check `documents.owner_id` | Full read/write |
+| Valid JWT + Permission | Token → check `document_permissions` table | Access per permission |
+| Valid JWT + Workspace member | Token → check `workspace_members` table | Role-based access |
+| No JWT + Public doc (edit) | Anonymous | Read/write as Guest |
+| No JWT + Public doc (view) | Anonymous | Read-only |
+| No JWT + Private doc | Rejected | Connection refused |
+
+### Supabase Database Tables
+
+| Table | Key Columns | Purpose |
+|---|---|---|
+| `profiles` | `id`, `display_name`, `avatar_url`, `avatar_color` | User profile data |
+| `workspaces` | `id`, `slug`, `owner_id`, `plan` | Workspace containers |
+| `workspace_members` | `workspace_id`, `user_id`, `role` | Membership & roles |
+| `folders` | `id`, `workspace_id`, `parent_folder_id`, `name` | Folder hierarchy |
+| `documents` | `id`, `workspace_id`, `owner_id`, `share_token`, `is_public`, `public_access` | Document storage & sharing |
+| `document_permissions` | `document_id`, `user_id`, `access` | Per-document ACL |
+| `document_revisions` | `document_id`, `ydoc_snapshot`, `created_by` | Version history snapshots |
+| `comments` | `document_id`, `author_id`, `body`, `thread_id` | Inline comments |
+| `starred_documents` | `document_id`, `user_id` | User starred documents |
+| `share_invitations` | `document_id`, `invited_email`, `access`, `token` | Email-based sharing |
+
+### Row-Level Security (RLS)
+
+All tables have RLS policies enforced at the database level:
+- **profiles**: Users can read any profile; update only their own
+- **workspaces**: Visible to members only; manageable by owners/admins
+- **documents**: Accessible based on workspace membership + `document_permissions` + public access
+- **document_permissions**: Readable by document owner and the granted user
+
+---
+
+## Error Handling Strategy
+
+SyncDoc implements a comprehensive error handling approach across the entire codebase:
+
+### Client-Side Pattern
+
+All async operations follow the **try/catch + user toast** pattern:
+
+```typescript
+async function handleAction() {
+  try {
+    // 1. Input validation
+    if (!isValid(input)) {
+      toast.error('Descriptive validation message');
+      return;
+    }
+
+    // 2. Auth check
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('You must be signed in');
+      return;
+    }
+
+    // 3. Database operation with error check
+    const { data, error } = await supabase.from('table').insert({ ... });
+    if (error) {
+      console.error('Context:', error);
+      toast.error('User-friendly error message');
+      return;
+    }
+
+    // 4. Success feedback
+    toast.success('Action completed successfully');
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    toast.error('Something went wrong. Please try again.');
+  }
+}
+```
+
+### Input Validation
+
+- **File uploads**: Size limit (10MB), empty file check, format validation (.docx, .txt, .md only)
+- **Document creation**: Auth verification before insert
+- **Export**: Empty document check before PDF/DOCX generation
+- **Sharing**: Access level validation
+
+### Server-Side Error Handling
+
+- **Workspace layout**: Graceful fallback for users with `document_permissions` but no workspace membership
+- **Hocuspocus auth**: Detailed error messages for each authentication failure path
+- **WebSocket**: Automatic reconnection with status indicator (green/yellow/red dot)
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Cause | Solution |
+|---|---|---|
+| "Access denied" on share link | Share token invalid or sharing disabled | Re-enable sharing in the document's Share modal |
+| 3-5 second page load | Sequential database queries | Already optimized with `Promise.all()` parallelization |
+| WebSocket disconnects | JWT expired or Hocuspocus down | Check `NEXT_PUBLIC_HOCUSPOCUS_URL` and server health at `/health` |
+| Editor content not syncing | Yjs provider initialization failed | Check browser console for `[Yjs]` errors; verify Hocuspocus is running |
+| File upload fails | File too large or unsupported format | Max 10MB; supported: .docx, .txt, .md |
+| Shared doc toolbar missing | Old share page (pre-update) | Update codebase — share links now redirect to full editor |
+
+### Debugging
+
+```bash
+# Check Hocuspocus health
+curl http://localhost:1234/health
+
+# View Supabase logs
+supabase logs --filter auth
+supabase logs --filter rest
+
+# Check RLS policies
+supabase inspect db policies
+```
+
+---
+
 ## License
 
 MIT
+

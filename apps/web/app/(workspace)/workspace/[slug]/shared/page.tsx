@@ -14,22 +14,24 @@ export default async function SharedPage({ params }: SharedPageProps) {
 
   if (!user) redirect('/login');
 
-  // Fetch workspace
-  const { data: workspace } = await supabase
-    .from('workspaces')
-    .select('*')
-    .eq('slug', params.slug)
-    .single();
+  // Parallelize workspace + profile fetch
+  const [workspaceResult, profileResult] = await Promise.all([
+    supabase
+      .from('workspaces')
+      .select('*')
+      .eq('slug', params.slug)
+      .single(),
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+  ]);
+
+  const workspace = workspaceResult.data;
+  const profile = profileResult.data;
 
   if (!workspace) redirect('/');
-
-  // Fetch profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
   if (!profile) redirect('/onboarding');
 
   return (

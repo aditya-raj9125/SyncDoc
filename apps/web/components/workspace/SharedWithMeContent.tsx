@@ -20,6 +20,7 @@ interface SharedWithMeContentProps {
 
 type SharedDoc = Document & {
   owner?: { display_name: string; avatar_url: string | null; avatar_color: string };
+  workspace_slug?: string;
 };
 
 export function SharedWithMeContent(props: SharedWithMeContentProps) {
@@ -44,37 +45,62 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
   async function fetchSharedDocs() {
     setLoading(true);
     try {
-      // 1. Get docs from document_permissions
-      const { data: permDocs } = await supabase
+      // 1. Get docs from document_permissions (with workspace slug for cross-workspace nav)
+      const { data: permDocs, error: permErr } = await supabase
         .from('document_permissions')
         .select(`
           document_id,
           documents (
             *,
-            owner:profiles (*)
+            owner:profiles (*),
+            workspaces (slug)
           )
         `)
         .eq('user_id', profile.id);
 
+      if (permErr) {
+        console.error('Failed to fetch permitted docs:', permErr);
+      }
+
       // 2. Get docs from share_invitations (by email)
-      const { data: inviteDocs } = await supabase
+      const { data: inviteDocs, error: inviteErr } = await supabase
         .from('share_invitations')
         .select(`
           document_id,
           documents (
             *,
-            owner:profiles (*)
+            owner:profiles (*),
+            workspaces (slug)
           )
         `)
         .eq('invited_email', email);
 
+      if (inviteErr) {
+        console.error('Failed to fetch invited docs:', inviteErr);
+      }
+
       const allDocs = [
-        ...(permDocs?.map(p => p.documents) || []),
-        ...(inviteDocs?.map(i => i.documents) || [])
+        ...(permDocs?.map(p => {
+          const doc = p.documents as any;
+          if (doc) {
+            doc.workspace_slug = doc.workspaces?.slug;
+          }
+          return doc;
+        }) || []),
+        ...(inviteDocs?.map(i => {
+          const doc = i.documents as any;
+          if (doc) {
+            doc.workspace_slug = doc.workspaces?.slug;
+          }
+          return doc;
+        }) || [])
       ].filter(Boolean) as unknown as SharedDoc[];
 
+      // Filter out docs owned by the current user (those aren't "shared with me")
+      const sharedOnly = allDocs.filter(d => d.owner_id !== profile.id);
+
       // De-duplicate by ID
-      const uniqueDocs = Array.from(new Map(allDocs.map(d => [d.id, d])).values());
+      const uniqueDocs = Array.from(new Map(sharedOnly.map(d => [d.id, d])).values());
       // Sort by last_edited_at
       uniqueDocs.sort((a, b) => new Date(b.last_edited_at).getTime() - new Date(a.last_edited_at).getTime());
       
@@ -90,6 +116,12 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
     setDocuments((prev) => prev.filter((d) => d.id !== docId));
     onRefresh?.();
   };
+
+  function navigateToDoc(doc: SharedDoc) {
+    // Use the document's workspace slug for cross-workspace navigation
+    const targetSlug = doc.workspace_slug || workspace.slug;
+    router.push(`/workspace/${targetSlug}/doc/${doc.id}`);
+  }
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -132,7 +164,7 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.02 }}
-              onClick={() => router.push(`${basePath}/doc/${doc.id}`)}
+              onClick={() => navigateToDoc(doc)}
               className="grid grid-cols-[1fr,200px,150px,40px] items-center gap-4 rounded-[var(--radius-md)] px-4 py-2 cursor-pointer hover:bg-[var(--bg-elevated)] transition-all group"
             >
               {/* Name Column */}

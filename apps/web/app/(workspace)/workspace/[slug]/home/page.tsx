@@ -14,7 +14,7 @@ export default async function HomePage({ params }: HomePageProps) {
 
   if (!user) redirect('/login');
 
-  // Fetch workspace
+  // First, fetch workspace (needed for subsequent queries)
   const { data: workspace } = await supabase
     .from('workspaces')
     .select('*')
@@ -23,35 +23,33 @@ export default async function HomePage({ params }: HomePageProps) {
 
   if (!workspace) redirect('/');
 
-  // Fetch profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Parallelize all remaining queries
+  const [profileResult, recentDocsResult, starredDocsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('documents')
+      .select('*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color)')
+      .eq('workspace_id', workspace.id)
+      .is('deleted_at', null)
+      .order('last_edited_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('starred_documents')
+      .select('document_id')
+      .eq('user_id', user.id),
+  ]);
 
-  // Fetch recent documents
-  const { data: recentDocs } = await supabase
-    .from('documents')
-    .select('*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color)')
-    .eq('workspace_id', workspace.id)
-    .is('deleted_at', null)
-    .order('last_edited_at', { ascending: false })
-    .limit(5);
-
-  // Fetch starred documents to show star status in list
-  const { data: starredDocs } = await supabase
-    .from('starred_documents')
-    .select('document_id')
-    .eq('user_id', user.id);
-
-  const starredIds = new Set(starredDocs?.map((s) => s.document_id) || []);
+  const starredIds = new Set(starredDocsResult.data?.map((s) => s.document_id) || []);
 
   return (
     <HomeContent
       workspace={workspace}
-      profile={profile!}
-      recentDocuments={(recentDocs as any) ?? []}
+      profile={profileResult.data!}
+      recentDocuments={(recentDocsResult.data as any) ?? []}
       starredIds={starredIds}
     />
   );

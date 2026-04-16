@@ -1,11 +1,10 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion, useScroll, useTransform, useInView } from 'framer-motion';
+import { motion, useInView, AnimatePresence } from 'framer-motion';
 import {
-  ArrowRight, 
-  MousePointerClick,
+  ArrowRight,
   Users,
   Zap,
   FileText,
@@ -15,126 +14,35 @@ import {
   Layers,
   PenTool,
   CheckCircle2,
-  ChevronRight,
-  Github,
-  Twitter,
-  Linkedin,
   Menu,
   X,
-  Star,
+  Twitter,
+  Linkedin,
+  Github,
+  ChevronRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
-/* ─────────────────────────── Animated Particle Grid ─────────────────────── */
-function ParticleGrid() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animFrame: number;
-    let width = 0;
-    let height = 0;
-
-    const particles: {
-      x: number; y: number; baseX: number; baseY: number;
-      vx: number; vy: number; radius: number; alpha: number;
-    }[] = [];
-
-    function resize() {
-      width = canvas!.parentElement!.clientWidth;
-      height = canvas!.parentElement!.clientHeight;
-      canvas!.width = width;
-      canvas!.height = height;
-      initParticles();
-    }
-
-    function initParticles() {
-      particles.length = 0;
-      const spacing = 40;
-      for (let x = 0; x < width; x += spacing) {
-        for (let y = 0; y < height; y += spacing) {
-          particles.push({
-            x, y, baseX: x, baseY: y,
-            vx: (Math.random() - 0.5) * 0.3,
-            vy: (Math.random() - 0.5) * 0.3,
-            radius: Math.random() * 1.2 + 0.4,
-            alpha: Math.random() * 0.3 + 0.1,
-          });
-        }
-      }
-    }
-
-    function draw() {
-      ctx!.clearRect(0, 0, width, height);
-      
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // Gentle pull back to base
-        const dx = p.baseX - p.x;
-        const dy = p.baseY - p.y;
-        p.vx += dx * 0.001;
-        p.vy += dy * 0.001;
-        p.vx *= 0.99;
-        p.vy *= 0.99;
-
-        ctx!.beginPath();
-        ctx!.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx!.fillStyle = `rgba(99, 102, 241, ${p.alpha})`;
-        ctx!.fill();
-      }
-
-      // Draw connections
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 60) {
-            ctx!.beginPath();
-            ctx!.moveTo(particles[i].x, particles[i].y);
-            ctx!.lineTo(particles[j].x, particles[j].y);
-            ctx!.strokeStyle = `rgba(99, 102, 241, ${0.06 * (1 - dist / 60)})`;
-            ctx!.lineWidth = 0.5;
-            ctx!.stroke();
-          }
-        }
-      }
-
-      animFrame = requestAnimationFrame(draw);
-    }
-
-    resize();
-    draw();
-    window.addEventListener('resize', resize);
-
-    return () => {
-      cancelAnimationFrame(animFrame);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />;
-}
-
-/* ─────────────────────────── Fade-in Section ─────────────────────────────── */
-function FadeInSection({ children, className = '', delay = 0 }: {
-  children: React.ReactNode; className?: string; delay?: number;
+/* ─── Helpers ────────────────────────────────────────────── */
+function FadeIn({
+  children,
+  className = '',
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
 }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-80px' });
-
+  const inView = useInView(ref, { once: true, margin: '-60px' });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 40 }}
-      animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.7, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      initial={{ opacity: 0, y: 28 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.55, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
       className={className}
     >
       {children}
@@ -142,475 +50,709 @@ function FadeInSection({ children, className = '', delay = 0 }: {
   );
 }
 
-/* ─────────────────────────── Feature Card ─────────────────────────────────── */
-function FeatureCard({ icon: Icon, title, description, delay = 0 }: {
-  icon: React.ElementType; title: string; description: string; delay?: number;
-}) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <FadeInSection delay={delay}>
-      <div className="group relative overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.05)] backdrop-blur-md transition-all duration-500 hover:border-indigo-500/40 hover:bg-[var(--bg-surface)]/40 hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-        {/* Glow effect on hover */}
-        <div className="absolute -inset-px opacity-0 bg-gradient-to-br from-indigo-500/20 via-transparent to-purple-500/20 blur-xl transition-opacity duration-500 group-hover:opacity-100" />
-        
-        <div className="relative z-10">
-          <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 transition-colors group-hover:bg-indigo-500/20 group-hover:text-indigo-300">
-            <Icon size={24} />
-          </div>
-          <h3 className="mb-3 text-lg font-semibold text-[var(--text-primary)] group-hover:text-indigo-500 transition-colors">{title}</h3>
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">{description}</p>
-        </div>
-      </div>
-    </FadeInSection>
+    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#00b49c]">
+      {children}
+    </p>
   );
 }
 
-/* ─────────────────────────── Stat ──────────────────────────────────────────── */
-function StatBlock({ value, label }: { value: string; label: string }) {
+/* ─── Editor Demo Mock ──────────────────────────────────── */
+function EditorDemo() {
   return (
-    <div className="text-center">
-      <div className="text-3xl font-bold text-[var(--text-primary)] md:text-4xl">{value}</div>
-      <div className="mt-1 text-sm text-[var(--text-secondary)]">{label}</div>
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] shadow-[0_8px_48px_rgba(0,0,0,0.1)]">
+      {/* top bar */}
+      <div className="flex items-center justify-between border-b border-[var(--bg-border)] px-4 py-2.5">
+        <div className="flex gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-red-400/70" />
+          <div className="h-3 w-3 rounded-full bg-yellow-400/70" />
+          <div className="h-3 w-3 rounded-full bg-green-400/70" />
+        </div>
+        <span className="text-[11px] text-[var(--text-tertiary)] italic">Q4 Strategy — SyncDoc</span>
+        <div className="flex -space-x-2">
+          {['bg-indigo-500','bg-emerald-500','bg-amber-400'].map((c,i) => (
+            <div key={i} className={`h-6 w-6 rounded-full ${c} ring-2 ring-[var(--bg-surface)] flex items-center justify-center text-[9px] font-bold text-white`}>
+              {['A','S','J'][i]}
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* toolbar */}
+      <div className="flex items-center gap-1 border-b border-[var(--bg-border)] px-4 py-1.5">
+        {['B','I','U'].map(k => (
+          <div key={k} className="flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)]">{k}</div>
+        ))}
+        <div className="mx-1 h-4 w-px bg-[var(--bg-border)]" />
+        <div className="rounded px-2 py-0.5 text-[10px] text-[var(--text-tertiary)]">Heading 1</div>
+      </div>
+      {/* content */}
+      <div className="px-6 py-5">
+        <h3 className="font-display text-xl italic text-[var(--text-primary)]">Q4 Product Strategy</h3>
+        <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+          Our focus this quarter is expanding real-time collaboration. Key initiatives include{' '}
+          <span className="border-b-2 border-indigo-400 text-[var(--text-primary)]">AI-powered suggestions</span>
+          {' '}that help teams write 3× faster.
+        </p>
+        <div className="relative mt-5">
+          <div className="absolute -left-0 top-0 h-[18px] w-0.5 rounded-full bg-emerald-400" />
+          <div className="absolute -left-0 -top-5 rounded bg-emerald-400 px-1.5 py-0.5 text-[9px] font-semibold text-white whitespace-nowrap">Sarah K.</div>
+        </div>
+        <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+          We&apos;ll prioritize mobile-first design patterns and deploy the DOCX export pipeline
+          by end of <span className="border-b-2 border-amber-400 text-[var(--text-primary)]">October</span>.
+        </p>
+        <div className="mt-3 flex items-center justify-between border-t border-[var(--bg-border)] pt-3">
+          <span className="text-[10px] text-[var(--text-tertiary)]">3 collaborators editing · synced</span>
+          <div className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-medium text-emerald-600">Live</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-/* ─────────────────────────── MAIN PAGE ─────────────────────────────────────── */
+/* ─── Problem mock ──────────────────────────────────────── */
+function ProblemMock() {
+  return (
+    <div className="mx-auto max-w-sm overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] shadow-[0_8px_40px_rgba(0,0,0,0.08)]">
+      <div className="border-b border-[var(--bg-border)] px-5 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center">
+            <FileText size={14} className="text-[var(--text-tertiary)]" />
+          </div>
+          <div>
+            <div className="text-[12px] font-medium text-[var(--text-primary)]">Team Document</div>
+            <div className="text-[10px] text-[var(--text-tertiary)]">Shared 3 days ago</div>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {/* old doc UI */}
+        <div className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-elevated)] p-3">
+          <div className="h-2 w-3/4 rounded bg-[var(--bg-border)] mb-2" />
+          <div className="h-2 w-1/2 rounded bg-[var(--bg-border)] mb-2" />
+          <div className="h-2 w-2/3 rounded bg-[var(--bg-border)]" />
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-[var(--bg-border)] bg-[var(--bg-surface)] px-3 py-2">
+          <div className="h-3 w-3 rounded-full bg-[var(--bg-border)]" />
+          <span className="text-[11px] text-[var(--text-secondary)]">Open in legacy editor ↗</span>
+        </div>
+        <div className="rounded-lg bg-neutral-800 p-3">
+          <p className="text-[11px] leading-relaxed text-neutral-200">
+            <strong className="text-white">I cannot</strong> directly edit this document.{' '}
+            <span className="text-neutral-400">Version conflicts detected — please download and re-upload.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Solution mock tabs ─────────────────────────────────── */
+function SolutionDemo() {
+  const [tab, setTab] = useState<'realtime' | 'offline'>('realtime');
+  return (
+    <div>
+      {/* tab row */}
+      <div className="mb-6 flex gap-3">
+        {(['realtime','offline'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${
+              tab === t
+                ? 'bg-[var(--text-primary)] text-[var(--bg-canvas)] shadow-sm'
+                : 'border border-[var(--bg-border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--text-primary)]'
+            }`}
+          >
+            {t === 'realtime' ? 'Real-time Sync' : 'Offline Mode'}
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.25 }}
+          className="overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.06)]"
+        >
+          {tab === 'realtime' ? (
+            <div className="p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-medium text-emerald-600">3 users editing now</span>
+              </div>
+              {/* fake typing animation lines */}
+              <div className="space-y-2">
+                {[80, 60, 90, 45, 70].map((w, i) => (
+                  <div key={i} className={`h-2.5 rounded bg-[var(--bg-elevated)]`} style={{ width: `${w}%` }} />
+                ))}
+              </div>
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#00b49c]/10 px-4 py-2.5">
+                <Zap size={14} className="text-[#00b49c]" />
+                <span className="text-[12px] font-medium text-[#00b49c]">Changes sync in under 100ms</span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-amber-400" />
+                <span className="text-xs font-medium text-amber-600">Working offline — 4 pending changes</span>
+              </div>
+              <div className="space-y-2">
+                {[65, 80, 50, 75, 40].map((w, i) => (
+                  <div key={i} className="h-2.5 rounded bg-[var(--bg-elevated)]" style={{ width: `${w}%` }} />
+                ))}
+              </div>
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2.5">
+                <Globe size={14} className="text-amber-500" />
+                <span className="text-[12px] font-medium text-amber-600">Will sync automatically on reconnect</span>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── Brand Logos strip ─────────────────────────────────── */
+function LogoStrip() {
+  const logos = ['Notion', 'Vercel', 'Linear', 'Supabase', 'Anthropic', 'Figma', 'GitHub', 'Stripe'];
+  return (
+    <div className="relative overflow-hidden py-2">
+      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-20 z-10 bg-gradient-to-r from-[var(--bg-canvas)] to-transparent" />
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-20 z-10 bg-gradient-to-l from-[var(--bg-canvas)] to-transparent" />
+      <motion.div
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 18, ease: 'linear', repeat: Infinity }}
+        className="flex items-center gap-12 whitespace-nowrap"
+      >
+        {[...logos, ...logos].map((name, i) => (
+          <span key={i} className="text-[13px] font-semibold text-[var(--text-tertiary)]">{name}</span>
+        ))}
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── MAIN ───────────────────────────────────────────────── */
 export default function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const heroRef = useRef(null);
-  const { scrollY } = useScroll();
-  const heroOpacity = useTransform(scrollY, [0, 500], [1, 0]);
-  const heroScale = useTransform(scrollY, [0, 500], [1, 0.95]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const navLinks = [
+    { label: 'Features', href: '#features' },
+    { label: 'How it works', href: '#how-it-works' },
+    { label: 'Security', href: '#security' },
+    { label: 'Docs', href: '#docs' },
+  ];
+
+  const contentClass = "mx-auto max-w-5xl px-6";
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] antialiased selection:bg-indigo-500/30">
-      {/* ─── Navbar ──────────────────────────────────────────────────────── */}
-      <nav className="fixed top-4 left-1/2 z-50 w-[95%] max-w-7xl -translate-x-1/2 overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 shadow-[0_8px_32px_rgba(0,0,0,0.1)] backdrop-blur-md">
-        <div className="mx-auto flex h-14 items-center justify-between px-6">
-          {/* Logo (Left) */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500">
-              <FileText size={16} className="text-white" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">SyncDoc</span>
-          </Link>
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] antialiased overflow-x-hidden transition-colors duration-300">
 
-          {/* Right Aligned Navigation & Auth */}
-          <div className="hidden items-center gap-6 md:flex">
-            <div className="flex items-center gap-6">
-              <a href="#features" className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">Features</a>
-              <a href="#pricing" className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">Pricing</a>
-              <a href="#blog" className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">Blog</a>
-              <a href="#docs" className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">Docs</a>
-            </div>
-            
-            <div className="h-4 w-px bg-[var(--bg-border)]" />
+      {/* ── Announcement bar ──────────────────────────────── */}
+      <div className="flex items-center justify-center gap-2 bg-neutral-950 px-4 py-2 text-center text-[12px] text-neutral-300">
+        <span className="hidden sm:inline">SyncDoc v2.0 is live — real-time collaboration, AI-native editing, and sub-100ms sync.</span>
+        <span className="sm:hidden">SyncDoc v2.0 is live.</span>
+        <Link href="/signup" className="font-semibold text-[#00d4bc] hover:underline">
+          Get started free →
+        </Link>
+      </div>
 
-            <div className="flex items-center gap-3">
+      {/* ── Navbar ───────────────────────────────────────── */}
+      <header className="sticky top-0 z-50">
+        <nav
+          className={`mx-auto transition-all duration-300 ${
+            scrolled
+              ? 'mt-3 max-w-3xl rounded-full bg-neutral-950 px-5 shadow-[0_4px_32px_rgba(0,0,0,0.18)]'
+              : `border-b border-[var(--bg-border)] bg-[var(--bg-canvas)]/80 backdrop-blur-md ${contentClass}`
+          }`}
+        >
+          <div className="flex h-14 items-center justify-between">
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-2">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${scrolled ? 'bg-white' : 'bg-[var(--text-primary)]'}`}>
+                <FileText size={14} className={scrolled ? 'text-neutral-900' : 'text-[var(--bg-canvas)]'} />
+              </div>
+              <span className={`text-[15px] font-semibold tracking-tight ${scrolled ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                SyncDoc
+              </span>
+            </Link>
+
+            {/* Desktop links */}
+            <div className="hidden items-center gap-7 md:flex">
+              {navLinks.map(l => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  className={`text-[13px] transition-colors ${
+                    scrolled ? 'text-neutral-300 hover:text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+
+            {/* CTA + ThemeToggle */}
+            <div className="hidden items-center gap-3 md:flex">
               <ThemeToggle />
-              <div className="h-4 w-px bg-[var(--bg-border)] ml-1 mr-1" />
+              <div className={`h-4 w-px ${scrolled ? 'bg-neutral-800' : 'bg-[var(--bg-border)]'}`} />
               <Link
                 href="/login"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                className={`text-[13px] font-medium transition-colors ${
+                  scrolled ? 'text-neutral-300 hover:text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
               >
                 Sign in
               </Link>
               <Link
                 href="/signup"
-                className="rounded-lg bg-indigo-500 px-5 py-2 text-sm font-medium text-white transition-all hover:bg-indigo-400 hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+                className={`rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
+                  scrolled
+                    ? 'bg-white text-neutral-900 hover:bg-neutral-100'
+                    : 'bg-[var(--text-primary)] text-[var(--bg-canvas)] hover:opacity-90'
+                }`}
               >
                 Get started free
               </Link>
             </div>
-          </div>
 
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden text-neutral-400"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </div>
+            {/* Mobile hamburger */}
+            <div className="flex items-center gap-3 md:hidden">
+              <ThemeToggle />
+              <button
+                className={scrolled ? 'text-neutral-300' : 'text-[var(--text-secondary)]'}
+                onClick={() => setMobileOpen(!mobileOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+            </div>
+          </div>
+        </nav>
 
         {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="border-t border-[var(--bg-border)] bg-[var(--bg-canvas)] px-6 py-4 md:hidden"
-          >
-            <div className="flex flex-col gap-3">
-              <a href="#features" className="py-2 text-sm text-[var(--text-secondary)]" onClick={() => setMobileMenuOpen(false)}>Features</a>
-              <a href="#pricing" className="py-2 text-sm text-[var(--text-secondary)]" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
-              <a href="#blog" className="py-2 text-sm text-[var(--text-secondary)]" onClick={() => setMobileMenuOpen(false)}>Blog</a>
-              <a href="#docs" className="py-2 text-sm text-[var(--text-secondary)]" onClick={() => setMobileMenuOpen(false)}>Docs</a>
-              <div className="mt-2 flex flex-col gap-2 border-t border-[var(--bg-border)] pt-4">
-                <div className="flex items-center justify-between px-2 mb-2">
-                  <span className="text-sm text-[var(--text-secondary)]">Theme</span>
-                  <ThemeToggle />
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className={`border-b border-[var(--bg-border)] bg-[var(--bg-canvas)] pb-5 md:hidden ${contentClass}`}
+            >
+              <div className="flex flex-col gap-1 pt-3">
+                {navLinks.map(l => (
+                  <a
+                    key={l.label}
+                    href={l.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+                  >
+                    {l.label}
+                  </a>
+                ))}
+                <div className="mt-3 flex flex-col gap-2 border-t border-[var(--bg-border)] pt-4">
+                  <Link
+                    href="/login"
+                    className="rounded-xl border border-[var(--bg-border)] px-4 py-3 text-center text-sm font-medium text-[var(--text-primary)]"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="rounded-xl bg-[var(--text-primary)] px-4 py-3 text-center text-sm font-semibold text-[var(--bg-canvas)]"
+                  >
+                    Get started free
+                  </Link>
                 </div>
-                <Link href="/login" className="rounded-lg border border-[var(--bg-border)] px-4 py-2.5 text-center text-sm font-medium text-[var(--text-primary)]">Sign in</Link>
-                <Link href="/signup" className="rounded-lg bg-indigo-500 px-4 py-2.5 text-center text-sm font-medium text-white">Get started free</Link>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
 
-      {/* ─── Hero ────────────────────────────────────────────────────────── */}
-      <section ref={heroRef} className="relative flex min-h-[100vh] items-center justify-center overflow-hidden pt-16">
-        <ParticleGrid />
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-[var(--bg-canvas)] px-6 pb-0 pt-16 md:pt-24">
+        {/* soft teal glow */}
+        <div className="pointer-events-none absolute right-0 top-0 h-[600px] w-[600px] rounded-full bg-[#00d4bc]/[0.1] blur-[120px]" />
 
-        {/* Radial gradient overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,var(--bg-canvas)_80%)]" />
-
-        {/* Accent glow */}
-        <div className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2">
-          <div className="h-[500px] w-[800px] rounded-full bg-indigo-500/[0.07] blur-[120px]" />
-        </div>
-
-        <motion.div style={{ opacity: heroOpacity, scale: heroScale }} className="relative z-10 mx-auto max-w-5xl px-6 text-center">
-          {/* Badge */}
-          <FadeInSection>
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 px-4 py-1.5 text-xs text-[var(--text-tertiary)] backdrop-blur-sm">
-              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Now with AI writing assistant — powered by SyncDoc-AI
-            </div>
-          </FadeInSection>
-
-          {/* Title - Mix of Sans and Italic Serif */}
-          <FadeInSection delay={0.1}>
-            <h1 className="mx-auto max-w-4xl font-sans text-[clamp(2.5rem,7vw,5.5rem)] leading-[1.0] tracking-tight font-medium">
-              <span className="text-[var(--text-primary)]">The document editor</span>
-              <br />
-              <span className="font-display italic text-[var(--text-secondary)]">
-                your team actually wants
-              </span>
-            </h1>
-          </FadeInSection>
-
-          {/* Subtitle */}
-          <FadeInSection delay={0.2}>
-            <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-[var(--text-tertiary)] md:text-xl">
-              Real-time collaboration, offline-first reliability, and AI that 
-              learns your team&apos;s voice. Everything Google Docs promised, 
-              finally delivered.
-            </p>
-          </FadeInSection>
-
-          {/* CTA */}
-          <FadeInSection delay={0.3}>
-            <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Link
-                href="/signup"
-                className="group flex items-center gap-2 rounded-xl bg-indigo-500 px-8 py-4 text-sm font-semibold text-white shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all hover:bg-indigo-400 hover:shadow-[0_0_50px_rgba(99,102,241,0.4)]"
-              >
-                Start writing for free →
-              </Link>
-              <Link
-                href="/demo"
-                className="flex items-center gap-2 rounded-xl border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 px-8 py-4 text-sm font-medium text-[var(--text-secondary)] backdrop-blur-sm transition-all hover:border-indigo-500/30 hover:text-[var(--text-primary)]"
-              >
-                Watch 2 min demo
-              </Link>
-            </div>
-          </FadeInSection>
-
-          {/* Social Proof */}
-          <FadeInSection delay={0.4}>
-             <div className="mt-20 flex flex-col items-center gap-5">
-                <div className="flex -space-x-3 items-center">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-10 w-10 rounded-full border-2 border-[#09090B] shadow-xl flex items-center justify-center overflow-hidden">
-                      <div className={`h-full w-full bg-gradient-to-br ${['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-orange-500 to-red-500', 'from-blue-500 to-cyan-500', 'from-pink-500 to-rose-500'][i-1]} opacity-80`} />
-                    </div>
-                  ))}
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[var(--bg-canvas)] bg-[var(--bg-surface)] shadow-xl">
-                    <span className="text-[10px] font-bold text-[var(--text-tertiary)]">+12k</span>
-                  </div>
+        <div className={contentClass}>
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+            {/* Left */}
+            <div>
+              {/* Badge */}
+              <FadeIn>
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--bg-border)] bg-[var(--bg-surface)] px-3 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-sm">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Now with AI writing assistant · sub-100ms sync
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 px-3 py-1 backdrop-blur-md">
-                   <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-                   <p className="text-[10px] font-bold tracking-widest text-[var(--text-tertiary)] uppercase">
-                     Trusted by <span className="text-[var(--text-secondary)]">12,000+ teams</span> worldwide
-                   </p>
+              </FadeIn>
+
+              {/* Headline */}
+              <FadeIn delay={0.06}>
+                <h1 className="text-[clamp(2.4rem,5.5vw,4.5rem)] font-bold leading-[1.08] tracking-tight text-[var(--text-primary)]">
+                  The collaborative editor{' '}
+                  <span className="font-display italic text-[var(--text-secondary)]">your team actually wants</span>
+                </h1>
+              </FadeIn>
+
+              {/* Body */}
+              <FadeIn delay={0.12}>
+                <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-[var(--text-secondary)]">
+                  SyncDoc enables your team to write, collaborate, and ship documents with
+                  real-time sync, offline-first reliability, and AI that learns your voice.
+                </p>
+              </FadeIn>
+
+              {/* CTAs */}
+              <FadeIn delay={0.18}>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--text-primary)] px-6 py-3 text-[13px] font-semibold text-[var(--bg-canvas)] transition-opacity hover:opacity-90"
+                  >
+                    Start writing for free
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--bg-border)] bg-[var(--bg-surface)] px-6 py-3 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--text-primary)] hover:text-[var(--text-primary)]"
+                  >
+                    Sign in
+                  </Link>
                 </div>
-             </div>
-          </FadeInSection>
-        </motion.div>
-      </section>
+              </FadeIn>
 
-      {/* ─── Features ─────────────────────────────────────────────────────── */}
-      <section id="features" className="py-16 md:py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <FadeInSection>
-            <div className="mx-auto max-w-2xl text-center">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-neutral-400">
-                <Layers size={12} className="text-indigo-400" /> Features
-              </div>
-              <h2 className="font-display text-4xl text-[var(--text-primary)] md:text-5xl italic">
-                Everything you need to write brilliantly
-              </h2>
-              <p className="mt-4 text-[var(--text-secondary)]">
-                A complete word processor built for modern teams — powerful enough
-                for enterprise, elegant enough for individuals.
-              </p>
+              {/* Social proof logos */}
+              <FadeIn delay={0.24}>
+                <div className="mt-10 border-t border-[var(--bg-border)] pt-8">
+                  <p className="mb-4 text-[11px] font-medium uppercase tracking-widest text-[var(--text-tertiary)]">
+                    Trusted by teams at
+                  </p>
+                  <LogoStrip />
+                </div>
+              </FadeIn>
             </div>
-          </FadeInSection>
 
-          <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard
-              icon={Zap}
-              title="Sub-100ms Sync"
-              description="CRDT-powered real-time editing with conflict-free merging. Every keystroke arrives instantly."
-              delay={0}
-            />
-            <FeatureCard
-              icon={Users}
-              title="Multiplayer Cursors"
-              description="See collaborators' cursors, selections, and edits in real time with beautiful presence indicators."
-              delay={0.05}
-            />
-            <FeatureCard
-              icon={Sparkles}
-              title="AI-Native Writing"
-              description="Grammar correction, tone adjustment, summarization, and translation — all powered by advanced AI."
-              delay={0.1}
-            />
-            <FeatureCard
-              icon={PenTool}
-              title="Rich Formatting"
-              description="Full word processor: fonts, sizes, colors, tables, images, headers/footers, and page breaks."
-              delay={0.15}
-            />
-            <FeatureCard
-              icon={Globe}
-              title="Offline-First"
-              description="Keep writing without internet. Changes sync automatically when you reconnect — no data loss."
-              delay={0.2}
-            />
-            <FeatureCard
-              icon={Shield}
-              title="Enterprise Security"
-              description="Row-level security, end-to-end encryption on shares, and granular permission controls."
-              delay={0.25}
-            />
+            {/* Right — editor demo */}
+            <FadeIn delay={0.1} className="relative">
+              <EditorDemo />
+              {/* decorative floating badge */}
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute -bottom-4 -left-4 hidden sm:flex items-center gap-2 rounded-xl border border-[var(--bg-border)] bg-[var(--bg-surface)] px-4 py-2.5 shadow-lg"
+              >
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[12px] font-semibold text-[var(--text-secondary)]">3 users editing now</span>
+              </motion.div>
+              <motion.div
+                animate={{ y: [0, 5, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+                className="absolute -right-4 top-12 hidden sm:flex items-center gap-2 rounded-xl border border-[var(--bg-border)] bg-[var(--bg-surface)] px-4 py-2.5 shadow-lg"
+              >
+                <Zap size={13} className="text-[#00b49c]" />
+                <span className="text-[12px] font-semibold text-[var(--text-secondary)]">Synced in 87ms</span>
+              </motion.div>
+            </FadeIn>
           </div>
         </div>
       </section>
 
-      {/* ─── Collaboration Showcase ───────────────────────────────────────── */}
-      <section id="collaboration" className="relative overflow-hidden py-16 md:py-20">
-        {/* Background accent */}
-        <div className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2">
-          <div className="h-[600px] w-[600px] rounded-full bg-indigo-500/[0.04] blur-[150px]" />
+      {/* ── THE PROBLEM ──────────────────────────────────── */}
+      <section id="how-it-works" className="bg-[var(--bg-canvas)] px-6 py-10 md:py-14">
+        <div className={contentClass}>
+          <FadeIn className="mb-14 text-center">
+            <SectionLabel>The Problem</SectionLabel>
+            <h2 className="mx-auto max-w-2xl text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight text-[var(--text-primary)]">
+              Legacy editors are stuck in the past
+            </h2>
+          </FadeIn>
+
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <FadeIn>
+              <ProblemMock />
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <div className="space-y-6">
+                {[
+                  {
+                    title: 'Version conflicts everywhere',
+                    desc: 'Download, edit, re-upload — the cycle that kills productivity and loses work.',
+                  },
+                  {
+                    title: 'No real collaboration',
+                    desc: "Commenting isn't collaborating. Teams need live cursors, live edits, and live presence.",
+                  },
+                  {
+                    title: 'Breaks when you need it most',
+                    desc: "Go offline on a flight and your editor becomes read-only. That's unacceptable in 2026.",
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--bg-border)] bg-[var(--bg-elevated)]">
+                      <div className="h-2 w-2 rounded-full bg-[#00b49c]" />
+                    </div>
+                    <div>
+                      <div className="text-[14px] font-semibold text-[var(--text-primary)]">{item.title}</div>
+                      <div className="mt-1 text-[13px] leading-relaxed text-[var(--text-secondary)]">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FadeIn>
+          </div>
         </div>
+      </section>
 
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid items-center gap-16 lg:grid-cols-2">
-            {/* Left: text */}
-            <FadeInSection>
+      {/* ── SYNCDOC SOLVES IT ────────────────────────────── */}
+      <section className="bg-[var(--bg-elevated)]/50 px-6 py-10 md:py-14">
+        <div className={contentClass}>
+          <FadeIn className="mb-14 text-center">
+            <SectionLabel>SyncDoc Solves It</SectionLabel>
+            <h2 className="mx-auto max-w-2xl text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight text-[var(--text-primary)]">
+              One editor for every workflow,
+              <br />
+              online or offline
+            </h2>
+          </FadeIn>
+
+          <div className="grid items-start gap-12 lg:grid-cols-2">
+            <FadeIn delay={0.08}>
+              <SolutionDemo />
+            </FadeIn>
+            <FadeIn delay={0.14}>
               <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-neutral-400">
-                  <Users size={12} className="text-indigo-400" /> Collaboration
-                </div>
-                <h2 className="font-display text-4xl text-[var(--text-primary)] md:text-5xl italic leading-tight">
-                  The best ideas come from <br /> working together
-                </h2>
-                <p className="mt-6 text-lg leading-relaxed text-[var(--text-secondary)]">
-                  Share documents with a click. Control who can view, comment, or edit.
-                  Watch changes appear in real time with zero latency.
+                <p className="mb-6 text-[14px] leading-relaxed text-[var(--text-secondary)]">
+                  <span className="font-semibold text-[var(--text-primary)]">CRDT-powered collaboration</span>
+                  {' '}means every change, from every user, merges conflict-free — even when working offline.
                 </p>
-
-                <ul className="mt-8 space-y-4">
+                <ul className="space-y-4">
                   {[
-                    'Real-time multiplayer editing with live cursors',
-                    'Granular sharing — owner, editor, commenter, viewer',
-                    'Public link sharing with customizable access levels',
-                    'Track changes with accept/reject workflow',
-                    'Threaded comments with @mentions',
-                  ].map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm text-neutral-400">
-                      <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-indigo-400" />
+                    'Sub-100ms sync latency via Hocuspocus WebSocket',
+                    'Offline-first with IndexedDB — never lose a keystroke',
+                    'Multiplayer cursors and live presence indicators',
+                    'Upload .docx / .txt, export PDF or Word',
+                    'AI writing assistant powered by Claude',
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-3 text-[13px] text-[var(--text-secondary)]">
+                      <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-[#00b49c]/10 flex items-center justify-center">
+                        <div className="h-1.5 w-1.5 rounded-full bg-[#00b49c]" />
+                      </div>
                       {item}
                     </li>
                   ))}
                 </ul>
               </div>
-            </FadeInSection>
-
-            {/* Right: visual */}
-            <FadeInSection delay={0.15}>
-              <div className="relative">
-                {/* Mock editor window */}
-                <div className="overflow-hidden rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] shadow-[0_20px_50px_rgba(0,0,0,0.1)] backdrop-blur-md transition-all duration-500 hover:border-indigo-500/30">
-                  {/* Title bar */}
-                  <div className="flex items-center gap-2 border-b border-[var(--bg-border)] px-4 py-3">
-                    <div className="flex gap-1.5">
-                      <div className="h-3 w-3 rounded-full bg-red-500/60" />
-                      <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
-                      <div className="h-3 w-3 rounded-full bg-green-500/60" />
-                    </div>
-                    <span className="ml-3 text-xs text-neutral-500 italic">Q4 Strategy — SyncDoc</span>
-                  </div>
-
-                  {/* Toolbar mock */}
-                  <div className="flex items-center gap-1 border-b border-[var(--bg-border)] px-4 py-2">
-                    {['B', 'I', 'U', 'S'].map((k) => (
-                      <div key={k} className="flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold text-[var(--text-tertiary)] hover:bg-indigo-500/10">
-                        {k}
-                      </div>
-                    ))}
-                    <div className="mx-1 h-4 w-px bg-[var(--bg-border)]" />
-                    <div className="rounded px-2 py-1 text-[10px] text-[var(--text-tertiary)]">Heading 1</div>
-                    <div className="rounded px-2 py-1 text-[10px] text-[var(--text-tertiary)]">Geist</div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="px-6 py-5">
-                    <h3 className="font-display text-xl text-[var(--text-primary)] italic">Q4 Product Strategy</h3>
-                    <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      Our focus this quarter is to expand real-time collaboration
-                      capabilities across all document types. Key initiatives include...
-                    </p>
-                    <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      <span className="border-b-2 border-indigo-500 text-[var(--text-primary)]">AI-powered suggestions</span>{' '}
-                      will help teams write 3× faster with automatic grammar
-                      correction and smart content completion.
-                    </p>
-
-                    {/* Cursor indicators */}
-                    <div className="relative mt-6">
-                      <div className="absolute -left-1 top-0 w-0.5 h-5 bg-emerald-400 rounded-full" />
-                      <div className="absolute -left-1 -top-4 rounded bg-emerald-400 px-1.5 py-0.5 text-[9px] font-medium text-white whitespace-nowrap">
-                        Sarah K.
-                      </div>
-                    </div>
-                    <p className="mt-4 text-sm leading-relaxed text-[var(--text-secondary)]">
-                      We&apos;ll prioritize mobile-first design patterns and deploy the
-                      DOCX export pipeline by end of <span className="border-b-2 border-amber-400">October</span>.
-                    </p>
-                    <div className="relative mt-1">
-                      <div className="absolute right-20 top-0 w-0.5 h-5 bg-amber-400 rounded-full" />
-                      <div className="absolute right-16 -top-4 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-medium text-neutral-900 whitespace-nowrap">
-                        James R.
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Presence bar */}
-                  <div className="flex items-center justify-between border-t border-[var(--bg-border)] px-4 py-2">
-                    <span className="text-[10px] text-[var(--text-secondary)]">3 collaborators editing</span>
-                    <div className="flex -space-x-2">
-                      {['bg-indigo-500', 'bg-emerald-500', 'bg-amber-500'].map((c, i) => (
-                        <div key={i} className={`h-6 w-6 rounded-full ${c} ring-2 ring-[#111113] flex items-center justify-center text-[9px] font-bold text-white`}>
-                          {['A', 'S', 'J'][i]}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </FadeInSection>
+            </FadeIn>
           </div>
         </div>
       </section>
 
-      {/* ─── Security Section ─────────────────────────────────────────────── */}
-      <section id="security" className="py-16 md:py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid items-center gap-16 lg:grid-cols-2">
-            {/* Left: visual */}
-            <FadeInSection>
+      {/* ── FEATURES grid ────────────────────────────────── */}
+      <section id="features" className="bg-[var(--bg-canvas)] px-6 py-10 md:py-14">
+        <div className={contentClass}>
+          <FadeIn className="mb-14 text-center">
+            <SectionLabel>Features</SectionLabel>
+            <h2 className="mx-auto max-w-xl text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight text-[var(--text-primary)]">
+              Everything your team needs to write brilliantly
+            </h2>
+          </FadeIn>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { icon: Zap,       title: 'Sub-100ms Sync',        desc: 'Every keystroke delivered instantly. Powered by Yjs CRDT and Hocuspocus WebSocket.' },
+              { icon: Users,     title: 'Multiplayer Cursors',   desc: 'See collaborators in real time — live cursors, selections, and presence indicators.' },
+              { icon: Sparkles,  title: 'AI Writing Assistant',  desc: 'Grammar, tone, summarize, translate — powered by Claude, right inside the editor.' },
+              { icon: Globe,     title: 'Offline-First',         desc: 'Changes persist in IndexedDB and sync automatically the moment you reconnect.' },
+              { icon: Shield,    title: 'Enterprise Security',   desc: 'Row-level security on every table. Granular permission controls. JWT auth.' },
+              { icon: PenTool,   title: 'Rich Block Editor',     desc: '20+ block types: tables, code, images, callouts, task lists, and mentions.' },
+              { icon: FileText,  title: 'Import & Export',       desc: 'Upload .docx, .txt, .md — and export to PDF or Word with a click.' },
+              { icon: Layers,    title: 'Version History',       desc: 'Every edit is snapshotted. Browse the timeline and restore any previous state.' },
+              { icon: CheckCircle2, title: 'Sharing & Permissions', desc: 'Share via secure links. Recipients get the same full editor experience.' },
+            ].map(({ icon: Icon, title, desc }, i) => (
+              <FadeIn key={title} delay={i * 0.04}>
+                <div className="group rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] p-6 shadow-sm transition-all duration-300 hover:border-[var(--text-tertiary)] hover:shadow-md">
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-elevated)] text-[var(--text-tertiary)] transition-colors group-hover:bg-[#00b49c]/10 group-hover:text-[#00b49c]">
+                    <Icon size={20} />
+                  </div>
+                  <h3 className="mb-2 text-[14px] font-semibold text-[var(--text-primary)]">{title}</h3>
+                  <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">{desc}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECURITY ─────────────────────────────────────── */}
+      <section id="security" className="bg-[var(--bg-elevated)]/30 px-6 py-10 md:py-14">
+        <div className={contentClass}>
+          <div className="grid items-center gap-14 lg:grid-cols-2">
+            <FadeIn>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { icon: Shield, label: 'Row-Level Security', desc: 'Per-user data isolation at the database layer' },
-                  { icon: Globe, label: 'Share Controls', desc: 'Granular public & private sharing settings' },
-                  { icon: Users, label: 'Team Permissions', desc: 'Owner, Editor, Commenter, Viewer roles' },
-                  { icon: Layers, label: 'Version History', desc: 'Full revision timeline with instant restore' },
-                ].map(({ icon: Icon, label, desc }, i) => (
-                  <div key={label} className="rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 p-6 shadow-lg backdrop-blur-md transition-all duration-500 hover:border-indigo-500/30 hover:bg-[var(--bg-surface)]/40 hover:shadow-[0_10px_30px_rgba(0,0,0,0.1)]">
-                    <Icon size={18} className="mb-3 text-indigo-400" />
-                    <div className="text-sm font-medium text-[var(--text-primary)]">{label}</div>
-                    <div className="mt-1 text-xs text-[var(--text-secondary)]">{desc}</div>
+                  { icon: Shield,    title: 'Row-Level Security',  desc: 'Per-user data isolation enforced at the database layer' },
+                  { icon: Globe,     title: 'Share Controls',      desc: 'Granular public & private sharing settings' },
+                  { icon: Users,     title: 'Team Permissions',    desc: 'Owner, Editor, Commenter, Viewer roles' },
+                  { icon: Layers,    title: 'Version History',     desc: 'Full revision timeline with instant restore' },
+                ].map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="rounded-2xl border border-[var(--bg-border)] bg-[var(--bg-surface)] p-5 shadow-sm transition-all hover:shadow-md">
+                    <Icon size={16} className="mb-3 text-[#00b49c]" />
+                    <div className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</div>
+                    <div className="mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]">{desc}</div>
                   </div>
                 ))}
               </div>
-            </FadeInSection>
-
-            {/* Right: text */}
-            <FadeInSection delay={0.1}>
+            </FadeIn>
+            <FadeIn delay={0.1}>
               <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-neutral-400">
-                  <Shield size={12} className="text-indigo-400" /> Security
-                </div>
-                <h2 className="font-display text-4xl text-[var(--text-primary)] md:text-5xl italic">
-                  Enterprise-grade security, built in
+                <SectionLabel>Security</SectionLabel>
+                <h2 className="text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.15] tracking-tight text-[var(--text-primary)]">
+                  Enterprise-grade security, built in from day one
                 </h2>
-                <p className="mt-6 text-lg leading-relaxed text-[var(--text-secondary)]">
+                <p className="mt-5 text-[14px] leading-relaxed text-[var(--text-secondary)]">
                   Every document is protected by row-level security policies,
-                  with controllable access and Supabase-powered authentication.
+                  with controllable access and Supabase-powered JWT authentication.
                   Your data never leaves your control.
                 </p>
               </div>
-            </FadeInSection>
+            </FadeIn>
           </div>
         </div>
       </section>
 
-      {/* ─── CTA ──────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden py-24">
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--bg-border)] bg-[var(--bg-surface)]/20 p-12 text-center md:p-20">
-            {/* Background Effects */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15),transparent_40%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.05),transparent_40%)]" />
-            <div className="absolute inset-0 backdrop-blur-3xl" />
-            
-            <div className="relative z-10 flex flex-col items-center">
-              <FadeInSection>
-                <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400">
-                  <Star size={12} className="fill-current" /> Lifetime access available
+      {/* ── CTA BANNER ───────────────────────────────────── */}
+      <section className="bg-[var(--bg-canvas)] px-6 py-8 md:py-10">
+        <div className="mx-auto max-w-5xl">
+          <FadeIn>
+            <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--bg-border)] bg-neutral-950 p-10 md:p-16 shadow-2xl">
+              {/* soft glow */}
+              <div className="pointer-events-none absolute -top-32 right-0 h-96 w-96 rounded-full bg-[#00d4bc]/20 blur-[80px]" />
+              <div className="relative z-10 flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="mb-2 text-[12px] font-semibold uppercase tracking-widest text-[#00d4bc]">When teams collaborate,</p>
+                  <h2 className="text-[clamp(1.8rem,4vw,3.2rem)] font-bold leading-tight text-white tracking-tight">
+                    SyncDoc keeps them in sync.
+                  </h2>
+                  <p className="mt-4 max-w-sm text-[16px] text-neutral-400">
+                    Join 12,000+ teams writing faster and collaborating better.
+                  </p>
                 </div>
-                <h2 className="font-display text-4xl text-[var(--text-primary)] md:text-6xl italic leading-tight">
-                  Stop settling for <br />
-                  <span className="text-[var(--text-secondary)]">legacy editors.</span>
-                </h2>
-                <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-[var(--text-secondary)]">
-                  Join the next generation of teams writing faster and collaborating better. 
-                  Experience the sub-100ms future of document editing today.
-                </p>
-                <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <div className="flex shrink-0 flex-col gap-4 sm:flex-row">
                   <Link
                     href="/signup"
-                    className="group relative flex items-center gap-2 rounded-2xl bg-white px-8 py-4 text-sm font-bold text-black transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.4)]"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 text-[14px] font-bold text-neutral-900 transition-all hover:bg-neutral-100 hover:scale-105"
                   >
-                    Start writing now
-                    <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                    Start for free
+                    <ArrowRight size={16} />
                   </Link>
                   <Link
-                    href="/demo"
-                    className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-8 py-4 text-sm font-bold text-white transition-all hover:bg-white/10"
+                    href="/login"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-neutral-700 px-8 py-4 text-[14px] font-medium text-neutral-300 transition-all hover:border-neutral-50"
                   >
-                    Watch live demo
+                    Sign in
                   </Link>
                 </div>
-              </FadeInSection>
+              </div>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* ─── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="border-t border-[var(--bg-border)] bg-[var(--bg-canvas)] py-12">
-        <div className="mx-auto max-w-7xl px-6 text-center">
-          <p className="text-sm font-medium tracking-widest text-[var(--text-secondary)] uppercase">
-            © 2026 SyncDoc
-          </p>
+      {/* ── FOOTER ───────────────────────────────────────── */}
+      <footer className="bg-[var(--bg-canvas)] px-6 pb-12">
+        <div className="mx-auto max-w-5xl">
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--bg-border)] bg-[var(--bg-surface)] px-8 py-12 shadow-sm">
+            <div className="grid gap-12 md:grid-cols-2">
+              {/* Left col */}
+              <div>
+                <div className="mb-5 flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--text-primary)]">
+                    <FileText size={16} className="text-[var(--bg-canvas)]" />
+                  </div>
+                  <span className="text-[17px] font-semibold text-[var(--text-primary)] tracking-tight">SyncDoc</span>
+                </div>
+                <p className="mb-8 max-w-xs text-[13px] leading-relaxed text-[var(--text-secondary)]">
+                  The next generation of collaborative writing. Real-time, offline-first, AI-native.
+                </p>
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--text-primary)] hover:opacity-80 transition-opacity"
+                >
+                  Get started free <ChevronRight size={14} />
+                </Link>
+              </div>
+
+              {/* Right cols */}
+              <div className="grid grid-cols-3 gap-8 text-[13px]">
+                <div>
+                  <p className="mb-4 font-bold text-[var(--text-primary)]">Product</p>
+                  {['Features', 'Changelog', 'Docs', 'Status'].map(l => (
+                    <a key={l} href="#" className="mb-2.5 block text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">{l}</a>
+                  ))}
+                </div>
+                <div>
+                  <p className="mb-4 font-bold text-[var(--text-primary)]">Legal</p>
+                  {['Privacy Policy', 'Terms of Service', 'Security'].map(l => (
+                    <a key={l} href="#" className="mb-2.5 block text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">{l}</a>
+                  ))}
+                </div>
+                <div>
+                  <p className="mb-4 font-bold text-[var(--text-primary)]">Company</p>
+                  {['About', 'Blog', 'Support'].map(l => (
+                    <a key={l} href="#" className="mb-2.5 block text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">{l}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom strip */}
+            <div className="mt-12 flex flex-col items-center justify-between gap-6 border-t border-[var(--bg-border)] pt-8 sm:flex-row">
+              <p className="text-[12px] text-[var(--text-tertiary)]">© 2026 SyncDoc. All rights reserved.</p>
+              <div className="flex items-center gap-5">
+                {[
+                  { icon: Twitter,  href: '#' },
+                  { icon: Linkedin, href: '#' },
+                  { icon: Github,   href: '#' },
+                ].map(({ icon: Icon, href }, i) => (
+                  <a
+                    key={i}
+                    href={href}
+                    className="text-neutral-400 transition-colors hover:text-neutral-800"
+                  >
+                    <Icon size={16} />
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Watermark */}
+            <div
+              className="pointer-events-none absolute bottom-2 right-0 select-none text-[clamp(4rem,14vw,9rem)] font-black leading-none tracking-tighter text-neutral-900/[0.04]"
+              aria-hidden
+            >
+              SyncDoc
+            </div>
+          </div>
         </div>
       </footer>
     </div>
   );
 }
-

@@ -48,7 +48,10 @@ export function DocumentActions({
     e.stopPropagation();
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast.error('You must be signed in to star a document');
+        return;
+      }
 
       if (isStarred) {
         setIsStarred(false);
@@ -57,19 +60,28 @@ export function DocumentActions({
           .delete()
           .eq('document_id', doc.id)
           .eq('user_id', user.id);
-        if (error) setIsStarred(true);
-        else toast.success('Removed from starred');
+        if (error) {
+          setIsStarred(true);
+          toast.error('Failed to remove star');
+        } else {
+          toast.success('Removed from starred');
+        }
       } else {
         setIsStarred(true);
         const { error } = await supabase
           .from('starred_documents')
           .insert({ document_id: doc.id, user_id: user.id });
-        if (error) setIsStarred(false);
-        else toast.success('Added to starred');
+        if (error) {
+          setIsStarred(false);
+          toast.error('Failed to star document');
+        } else {
+          toast.success('Added to starred');
+        }
       }
       onActionComplete?.();
     } catch (err) {
       console.error('Error toggling star:', err);
+      toast.error('Something went wrong');
     }
   }
 
@@ -77,48 +89,66 @@ export function DocumentActions({
     e.stopPropagation();
     if (!confirm('Are you sure you want to move this document to trash?')) return;
 
-    const { error } = await supabase
-      .from('documents')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', doc.id);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', doc.id);
 
-    if (error) {
-      toast.error('Failed to delete document');
-    } else {
-      toast.success('Moved to trash');
-      onActionComplete?.();
+      if (error) {
+        console.error('Delete error:', error);
+        toast.error('Failed to delete document');
+      } else {
+        toast.success('Moved to trash');
+        onActionComplete?.();
+      }
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      toast.error('Something went wrong while deleting');
     }
   }
 
   async function handleRestore(e: React.MouseEvent) {
     e.stopPropagation();
-    const { error } = await supabase
-      .from('documents')
-      .update({ deleted_at: null })
-      .eq('id', doc.id);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ deleted_at: null })
+        .eq('id', doc.id);
 
-    if (error) {
-      toast.error('Failed to restore document');
-    } else {
-      toast.success('Document restored');
-      onActionComplete?.();
+      if (error) {
+        console.error('Restore error:', error);
+        toast.error('Failed to restore document');
+      } else {
+        toast.success('Document restored');
+        onActionComplete?.();
+      }
+    } catch (err) {
+      console.error('Error restoring document:', err);
+      toast.error('Something went wrong while restoring');
     }
   }
 
   async function handlePermanentDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('This document will be permanently deleted. This action cannot be undone. Area you sure?')) return;
+    if (!confirm('This document will be permanently deleted. This action cannot be undone. Are you sure?')) return;
 
-    const { error } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', doc.id);
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', doc.id);
 
-    if (error) {
-      toast.error('Failed to delete document permanently');
-    } else {
-      toast.success('Document permanently deleted');
-      onActionComplete?.();
+      if (error) {
+        console.error('Permanent delete error:', error);
+        toast.error('Failed to delete document permanently');
+      } else {
+        toast.success('Document permanently deleted');
+        onActionComplete?.();
+      }
+    } catch (err) {
+      console.error('Error permanently deleting document:', err);
+      toast.error('Something went wrong');
     }
   }
 
@@ -132,10 +162,13 @@ export function DocumentActions({
     toast.info(`Preparing ${type.toUpperCase()}...`);
 
     try {
-      // Find the editor element
+      // Try to find editor DOM element (works when document is open in editor)
       const editorElement = document.querySelector('.tiptap-editor');
+      
       if (!editorElement) {
-        toast.error('Editor content not found');
+        // If not on editor page, navigate to the document first
+        toast.info('Opening document for export...');
+        router.push(`/workspace/${workspace.slug}/doc/${doc.id}`);
         return;
       }
 
@@ -173,11 +206,13 @@ export function DocumentActions({
         const { Document, Packer, Paragraph, TextRun } = await import('docx');
         const { saveAs } = await import('file-saver');
 
-        // Simple text-based DOCX for now (full HTML-to-DOCX is a complex plugin)
-        // We can get the text from the DOM or Tiptap if we had the editor instance.
-        // Since we are in DocumentActions, we'll pull from the DOM.
         const text = editorElement.textContent || '';
         const lines = text.split('\n').filter(l => l.trim() !== '');
+
+        if (lines.length === 0) {
+          toast.error('Document is empty — nothing to export');
+          return;
+        }
 
         const docxObj = new Document({
           sections: [
@@ -197,7 +232,7 @@ export function DocumentActions({
       }
     } catch (err) {
       console.error('Export error:', err);
-      toast.error('Failed to export document');
+      toast.error(`Failed to export ${type.toUpperCase()}. Please open the document and try again.`);
     }
   }
 

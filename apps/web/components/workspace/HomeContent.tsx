@@ -57,24 +57,38 @@ export function HomeContent({
   const basePath = `/workspace/${workspace.slug}`;
 
   async function handleNewDocument() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be signed in to create a document');
+        return;
+      }
 
-    const { data: doc, error } = await supabase
-      .from('documents')
-      .insert({
-        workspace_id: workspace.id,
-        owner_id: user.id,
-        title: 'Untitled',
-        source_type: 'blank',
-      })
-      .select()
-      .single();
+      const { data: doc, error } = await supabase
+        .from('documents')
+        .insert({
+          workspace_id: workspace.id,
+          owner_id: user.id,
+          title: 'Untitled',
+          source_type: 'blank',
+        })
+        .select()
+        .single();
 
-    if (!error && doc) {
-      router.push(`${basePath}/doc/${doc.id}`);
+      if (error) {
+        console.error('Error creating document:', error);
+        toast.error('Failed to create document');
+        return;
+      }
+
+      if (doc) {
+        router.push(`${basePath}/doc/${doc.id}`);
+      }
+    } catch (err) {
+      console.error('Error creating document:', err);
+      toast.error('Something went wrong. Please try again.');
     }
   }
 
@@ -82,12 +96,27 @@ export function HomeContent({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Input validation
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File too large. Maximum file size is 10MB.');
+      return;
+    }
+
+    if (file.size === 0) {
+      toast.error('File is empty. Please select a valid file.');
+      return;
+    }
+
     setUploading(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast.error('You must be signed in to upload a document');
+        return;
+      }
 
       let content = '';
       const extension = file.name.split('.').pop()?.toLowerCase();
@@ -100,6 +129,11 @@ export function HomeContent({
         content = await file.text();
       } else {
         toast.error(`Unsupported format: .${extension}. Please use .docx, .txt, or .md`);
+        return;
+      }
+
+      if (!content.trim()) {
+        toast.error('File appears to be empty or could not be read.');
         return;
       }
 
@@ -131,16 +165,19 @@ export function HomeContent({
         .select()
         .single();
 
-      if (!error && doc) {
-        toast.success(`Uploaded "${title}" successfully`);
-        router.push(`${basePath}/doc/${doc.id}`);
-      } else {
+      if (error) {
         console.error('Database insertion error:', error);
         toast.error('Failed to save uploaded document');
+        return;
+      }
+
+      if (doc) {
+        toast.success(`Uploaded "${title}" successfully`);
+        router.push(`${basePath}/doc/${doc.id}`);
       }
     } catch (err) {
       console.error('Upload error:', err);
-      toast.error('Failed to read or convert the file');
+      toast.error('Failed to read or convert the file. Please try a different file.');
     } finally {
       setUploading(false);
       // Reset file input
