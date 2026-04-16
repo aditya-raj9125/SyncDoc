@@ -525,7 +525,7 @@ export default function LandingPage() {
   </section>
 
   {/* ── THE PROBLEM ──────────────────────────────────── */ }
-  <section id="how-it-works" className="bg-[var(--bg-canvas)] px-6 py-10 md:py-14">
+  <section id="how-it-works" className="bg-[var(--bg-canvas)] px-6 py-6 md:py-8">
     <div className={contentClass}>
       <FadeIn className="mb-14 text-center">
         <SectionLabel>The Problem</SectionLabel>
@@ -571,7 +571,7 @@ export default function LandingPage() {
   </section>
 
   {/* ── SYNCDOC SOLVES IT ────────────────────────────── */ }
-  <section className="bg-[var(--bg-elevated)]/50 px-6 py-10 md:py-14">
+  <section className="bg-[var(--bg-elevated)]/50 px-6 py-6 md:py-8">
     <div className={contentClass}>
       <FadeIn className="mb-14 text-center">
         <SectionLabel>SyncDoc Solves It</SectionLabel>
@@ -615,7 +615,7 @@ export default function LandingPage() {
   </section>
 
   {/* ── FEATURES grid ────────────────────────────────── */ }
-  <section id="features" className="bg-[var(--bg-canvas)] px-6 py-10 md:py-14">
+  <section id="features" className="bg-[var(--bg-canvas)] px-6 py-6 md:py-8">
     <div className={contentClass}>
       <FadeIn className="mb-14 text-center">
         <SectionLabel>Features</SectionLabel>
@@ -651,7 +651,7 @@ export default function LandingPage() {
   </section>
 
   {/* ── SECURITY ─────────────────────────────────────── */ }
-  <section id="security" className="bg-[var(--bg-elevated)]/30 px-6 py-10 md:py-14">
+  <section id="security" className="bg-[var(--bg-elevated)]/30 px-6 py-6 md:py-8">
     <div className={contentClass}>
       <div className="grid items-center gap-14 lg:grid-cols-2">
         <FadeIn>
@@ -688,7 +688,7 @@ export default function LandingPage() {
   </section>
 
   {/* ── CTA BANNER ───────────────────────────────────── */ }
-  <section className="bg-[var(--bg-canvas)] px-6 py-8 md:py-10">
+  <section className="bg-[var(--bg-canvas)] px-6 py-5 md:py-6">
     <div className="mx-auto max-w-5xl">
       <FadeIn>
         <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--bg-border)] bg-neutral-950 p-10 md:p-16 shadow-2xl">

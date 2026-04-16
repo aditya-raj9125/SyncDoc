@@ -196,7 +196,7 @@ function LoginForm() {
             <Button
               variant="outline"
               size="md"
-              className="w-full h-10 text-xs text-white"
+              className="w-full h-10 text-xs text-white hover:bg-transparent focus:bg-transparent active:bg-transparent"
               onClick={() => handleOAuthLogin('google')}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -222,7 +222,7 @@ function LoginForm() {
             <Button
               variant="outline"
               size="md"
-              className="w-full h-10 text-xs text-white"
+              className="w-full h-10 text-xs text-white hover:bg-transparent focus:bg-transparent active:bg-transparent"
               onClick={() => handleOAuthLogin('github')}
             >
               <Github className="h-4 w-4" />
