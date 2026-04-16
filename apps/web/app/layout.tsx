@@ -6,7 +6,7 @@ import '@/styles/editor.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SyncDoc — Real-Time Collaborative Documents',
+    default: 'SyncDoc',
     template: '%s — SyncDoc',
   },
   description:
