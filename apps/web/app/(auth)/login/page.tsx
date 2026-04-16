@@ -183,10 +183,10 @@ function LoginForm() {
           className="w-full max-w-[380px] rounded-[2rem] border border-white/[0.08] bg-white/[0.02] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl md:p-8"
         >
           <div className="mb-6 text-center lg:text-left">
-            <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+            <h2 className="text-xl font-semibold text-white">
               {STRINGS.auth.loginTitle}
             </h2>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            <p className="mt-1 text-xs text-white/80">
               {STRINGS.auth.loginSubtitle}
             </p>
           </div>
@@ -196,7 +196,7 @@ function LoginForm() {
             <Button
               variant="outline"
               size="md"
-              className="w-full h-10 text-xs"
+              className="w-full h-10 text-xs text-white"
               onClick={() => handleOAuthLogin('google')}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -222,7 +222,7 @@ function LoginForm() {
             <Button
               variant="outline"
               size="md"
-              className="w-full h-10 text-xs"
+              className="w-full h-10 text-xs text-white"
               onClick={() => handleOAuthLogin('github')}
             >
               <Github className="h-4 w-4" />
@@ -236,7 +236,7 @@ function LoginForm() {
               <div className="w-full border-t border-[var(--bg-border)]" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[var(--bg-canvas)] px-3 text-[var(--text-tertiary)]">
+              <span className="bg-[#09090B] px-3 text-white/60">
                 {STRINGS.auth.orContinueWith}
               </span>
             </div>
@@ -304,9 +304,9 @@ function LoginForm() {
             </form>
           )}
 
-          <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
+          <p className="mt-6 text-center text-sm text-white/80">
             {STRINGS.auth.noAccount}{' '}
-            <Link href="/signup" className="text-[var(--brand-primary)] hover:underline font-medium">
+            <Link href="/signup" className="text-indigo-400 hover:underline font-medium">
               {STRINGS.auth.signUp}
             </Link>
           </p>

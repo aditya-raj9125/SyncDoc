@@ -208,17 +208,17 @@ export default function SignupPage() {
           className="w-full max-w-[390px] rounded-[2rem] border border-white/[0.08] bg-white/[0.02] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl md:p-8"
         >
           <div className="mb-6 text-center lg:text-left">
-            <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+            <h2 className="text-xl font-semibold text-white">
               {STRINGS.auth.signupTitle}
             </h2>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            <p className="mt-1 text-xs text-white/80">
               {STRINGS.auth.signupSubtitle}
             </p>
           </div>
 
           {/* OAuth */}
           <div className="flex flex-col gap-2 mb-4">
-            <Button variant="outline" size="md" className="w-full h-10 text-xs" onClick={() => handleOAuthSignup('google')}>
+            <Button variant="outline" size="md" className="w-full h-10 text-xs text-white" onClick={() => handleOAuthSignup('google')}>
               <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
@@ -227,7 +227,7 @@ export default function SignupPage() {
               </svg>
               {STRINGS.auth.signInWithGoogle}
             </Button>
-            <Button variant="outline" size="md" className="w-full h-10 text-xs" onClick={() => handleOAuthSignup('github')}>
+            <Button variant="outline" size="md" className="w-full h-10 text-xs text-white" onClick={() => handleOAuthSignup('github')}>
               <Github className="h-4 w-4" />
               {STRINGS.auth.signInWithGitHub}
             </Button>
@@ -238,7 +238,7 @@ export default function SignupPage() {
               <div className="w-full border-t border-[var(--bg-border)]" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[var(--bg-canvas)] px-3 text-[var(--text-tertiary)]">
+              <span className="bg-[#09090B] px-3 text-white/60">
                 {STRINGS.auth.orContinueWith}
               </span>
             </div>
@@ -282,9 +282,9 @@ export default function SignupPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
+          <p className="mt-6 text-center text-sm text-white/80">
             {STRINGS.auth.hasAccount}{' '}
-            <Link href="/login" className="text-[var(--brand-primary)] hover:underline font-medium">
+            <Link href="/login" className="text-indigo-400 hover:underline font-medium">
               {STRINGS.auth.signIn}
             </Link>
           </p>
