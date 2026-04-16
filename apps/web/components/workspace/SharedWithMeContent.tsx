@@ -46,20 +46,21 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
     setLoading(true);
     try {
       // 1. Get docs from document_permissions (with workspace slug for cross-workspace nav)
+      // FIX: Use explicit FK constraint names (!documents_owner_id_fkey) to resolve ambiguity
       const { data: permDocs, error: permErr } = await supabase
         .from('document_permissions')
         .select(`
           document_id,
-          documents (
+          documents:documents (
             *,
-            owner:profiles (*),
+            owner:profiles!documents_owner_id_fkey (*),
             workspaces (slug)
           )
         `)
         .eq('user_id', profile.id);
 
       if (permErr) {
-        console.error('Failed to fetch permitted docs:', permErr);
+        console.error('[SharedWithMe] Failed to fetch permitted docs:', permErr);
       }
 
       // 2. Get docs from share_invitations (by email)
@@ -67,16 +68,16 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
         .from('share_invitations')
         .select(`
           document_id,
-          documents (
+          documents:documents (
             *,
-            owner:profiles (*),
+            owner:profiles!documents_owner_id_fkey (*),
             workspaces (slug)
           )
         `)
         .eq('invited_email', email);
 
       if (inviteErr) {
-        console.error('Failed to fetch invited docs:', inviteErr);
+        console.error('[SharedWithMe] Failed to fetch invited docs:', inviteErr);
       }
 
       const allDocs = [
@@ -100,13 +101,21 @@ export function SharedWithMeContent(props: SharedWithMeContentProps) {
       const sharedOnly = allDocs.filter(d => d.owner_id !== profile.id);
 
       // De-duplicate by ID
-      const uniqueDocs = Array.from(new Map(sharedOnly.map(d => [d.id, d])).values());
+      const uniqueDocsMap = new Map();
+      sharedOnly.forEach(d => {
+        if (!uniqueDocsMap.has(d.id)) {
+          uniqueDocsMap.set(d.id, d);
+        }
+      });
+      
+      const uniqueDocs = Array.from(uniqueDocsMap.values());
+
       // Sort by last_edited_at
       uniqueDocs.sort((a, b) => new Date(b.last_edited_at).getTime() - new Date(a.last_edited_at).getTime());
       
       setDocuments(uniqueDocs);
     } catch (err) {
-      console.error('Failed to fetch shared docs:', err);
+      console.error('[SharedWithMe] Failed to fetch shared docs:', err);
     } finally {
       setLoading(false);
     }

@@ -66,7 +66,9 @@ export function HomeContent({
         return;
       }
 
-      const { data: doc, error } = await supabase
+      // FIX: Split INSERT and SELECT to avoid RETURNING * RLS issue
+      // (PostgREST RETURNING evaluates SELECT policy on fresh row with no doc_permissions yet)
+      const { data: insertData, error } = await supabase
         .from('documents')
         .insert({
           workspace_id: workspace.id,
@@ -74,17 +76,17 @@ export function HomeContent({
           title: 'Untitled',
           source_type: 'blank',
         })
-        .select()
+        .select('id')
         .single();
 
       if (error) {
-        console.error('Error creating document:', error);
+        console.error('Error creating document:', JSON.stringify(error));
         toast.error('Failed to create document');
         return;
       }
 
-      if (doc) {
-        router.push(`${basePath}/doc/${doc.id}`);
+      if (insertData) {
+        router.push(`${basePath}/doc/${insertData.id}`);
       }
     } catch (err) {
       console.error('Error creating document:', err);
@@ -121,14 +123,15 @@ export function HomeContent({
       let content = '';
       const extension = file.name.split('.').pop()?.toLowerCase();
 
-      if (extension === 'docx') {
+      if (extension === 'docx' || extension === 'doc') {
         const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        content = result.value;
+        // FIX 10: Use convertToHtml (NOT extractRawText) to preserve headings, bold, italic, lists
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        content = result.value; // HTML string
       } else if (extension === 'txt' || extension === 'md') {
         content = await file.text();
       } else {
-        toast.error(`Unsupported format: .${extension}. Please use .docx, .txt, or .md`);
+        toast.error(`Unsupported format: .${extension}. Please use .docx, .doc, .txt, or .md`);
         return;
       }
 
@@ -153,27 +156,27 @@ export function HomeContent({
       // Derive title from filename
       const title = file.name.replace(/\.(docx?|txt|md|rtf)$/i, '') || 'Untitled';
 
-      const { data: doc, error } = await supabase
+      const { data: insertedDoc, error } = await supabase
         .from('documents')
         .insert({
           workspace_id: workspace.id,
           owner_id: user.id,
           title,
-          source_type: 'upload',
+          source_type: 'uploaded', // CHECK constraint: ('blank', 'uploaded', 'template')
           ydoc_state: base64State,
         })
-        .select()
+        .select('id')
         .single();
 
       if (error) {
-        console.error('Database insertion error:', error);
+        console.error('Database insertion error:', JSON.stringify(error));
         toast.error('Failed to save uploaded document');
         return;
       }
 
-      if (doc) {
+      if (insertedDoc) {
         toast.success(`Uploaded "${title}" successfully`);
-        router.push(`${basePath}/doc/${doc.id}`);
+        router.push(`${basePath}/doc/${insertedDoc.id}`);
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -240,11 +243,11 @@ export function HomeContent({
           </span>
         </button>
 
-        {/* Hidden file input */}
+        {/* Hidden file input — FIX 10: Include .doc */}
         <input
           ref={fileInputRef}
           type="file"
-          accept=".docx,.txt,.md"
+          accept=".doc,.docx,.txt,.md"
           onChange={handleUploadDocument}
           className="hidden"
           aria-label="Upload document file"

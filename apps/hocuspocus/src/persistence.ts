@@ -44,13 +44,35 @@ export const databaseExtension: Extension = {
     const state = encodeStateAsUpdate(document);
     const base64State = Buffer.from(state).toString('base64');
 
-    // Persist to documents table
+    // FIX 12 Step 4: Extract title from Yjs shared type
+    // The title is stored in a Y.Text named 'title' by the client
+    // If it doesn't exist, fall back to the document content's first heading
+    let extractedTitle: string | null = null;
+    try {
+      const titleText = document.getText('title');
+      const titleStr = titleText.toString().trim();
+      if (titleStr) {
+        extractedTitle = titleStr.slice(0, 500); // Max 500 chars
+      }
+    } catch (e) {
+      // title Y.Text doesn't exist — that's OK, client manages title separately
+    }
+
+    // Build update payload
+    const updatePayload: Record<string, unknown> = {
+      ydoc_state: base64State,
+      last_edited_at: new Date().toISOString(),
+    };
+
+    // Only include title if we extracted one (prevents overwriting with empty string)
+    if (extractedTitle) {
+      updatePayload.title = extractedTitle;
+    }
+
+    // Persist to documents table — triggers Realtime UPDATE event for all subscribers
     const { error } = await supabase
       .from('documents')
-      .update({
-        ydoc_state: base64State,
-        last_edited_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', docId);
 
     if (error) {

@@ -205,11 +205,18 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
     [ydoc, hocusProvider] // Recreate editor when ydoc or provider changes
   );
 
-  // Update editable state when accessLevel changes
+  // FIX 5: canEdit is already correct (edit || owner) — this ensures shared users with edit access can edit the title
   useEffect(() => {
     if (editor) {
       editor.setEditable(canEdit);
+      // FIX 7/8: Expose editor instance globally so export functions can access getJSON()
+      (window as any).__tiptapEditor = editor;
     }
+    return () => {
+      if ((window as any).__tiptapEditor === editor) {
+        delete (window as any).__tiptapEditor;
+      }
+    };
   }, [editor, canEdit]);
 
   // Title input handlers
@@ -359,17 +366,17 @@ export function Editor({ document: doc, workspace, profile, accessLevel }: Edito
         {/* Emoji + Title */}
         <div className="relative mb-4">
           <div className="flex items-start gap-3">
-            {/* Emoji icon */}
+            {/* Emoji icon — FIX 11: 32px, vertically centered with title baseline */}
             <button
               onClick={() => canEdit && setShowEmojiPicker(!showEmojiPicker)}
-              className="mt-1 flex-shrink-0 text-[28px] leading-none hover:opacity-80 transition-opacity"
+              className="mt-2 flex-shrink-0 text-[32px] leading-none hover:opacity-80 transition-opacity"
               aria-label="Change document icon"
               disabled={!canEdit}
             >
               {emojiIcon}
             </button>
 
-            {/* Title textarea */}
+            {/* Title textarea — FIX 5: readOnly uses canEdit (effectivePermission), NOT isOwner */}
             <textarea
               ref={titleRef}
               value={title}

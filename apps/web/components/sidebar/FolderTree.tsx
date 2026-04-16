@@ -172,7 +172,7 @@ function DocItem({
         folder_id: original.folder_id,
         source_type: 'blank',
       })
-      .select()
+      .select('id')
       .single();
 
     if (newDoc) {
@@ -319,7 +319,7 @@ function FolderItem({
         title: 'Untitled',
         source_type: 'blank',
       })
-      .select()
+      .select('id')
       .single();
 
     if (!error && doc) {

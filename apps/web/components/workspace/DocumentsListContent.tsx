@@ -12,13 +12,14 @@ import type { Workspace, Document } from '@syncdoc/types';
 
 interface DocumentsListContentProps {
   workspace: Workspace;
-  documents: (Document & { owner?: { display_name: string; avatar_url: string | null; avatar_color: string } })[];
+  documents: (Document & { owner?: { display_name: string; avatar_url: string | null; avatar_color: string }; owner_id?: string })[];
   starredIds?: Set<string>;
   isTrash?: boolean;
   title: string;
   emptyMessage?: string;
   emptyHint?: string;
   onRefresh?: () => void;
+  currentUserId?: string;
 }
 
 export function DocumentsListContent({
@@ -30,6 +31,7 @@ export function DocumentsListContent({
   emptyMessage = STRINGS.workspace.noDocuments,
   emptyHint = STRINGS.workspace.noDocumentsHint,
   onRefresh,
+  currentUserId,
 }: DocumentsListContentProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -88,7 +90,7 @@ export function DocumentsListContent({
                 </span>
               </div>
 
-              {/* Owner Column */}
+              {/* Owner Column — Show owner for all docs, with (me) for current user */}
               <div className="flex items-center gap-2 min-w-0">
                 {doc.owner ? (
                   <>
@@ -97,10 +99,10 @@ export function DocumentsListContent({
                       src={doc.owner.avatar_url}
                       color={doc.owner.avatar_color}
                       size="sm"
-                      className="!h-6 !w-6"
+                      className="!h-4 !w-4"
                     />
                     <span className="truncate text-xs text-[var(--text-secondary)]">
-                      {doc.owner.display_name}
+                      {doc.owner.display_name} {doc.owner_id === currentUserId && '(me)'}
                     </span>
                   </>
                 ) : (

@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { createBrowserClient } from '@/lib/supabase/client';
-import { Upload, FileText, FileImage, X, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, FileText, FileImage, X, AlertCircle, Check, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FileUploaderProps {
@@ -14,8 +14,10 @@ interface FileUploaderProps {
   maxSizeMB?: number;
 }
 
+// FIX 10: Include .doc (legacy binary Word) in allowed types
 const ALLOWED_DOC_TYPES = [
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/msword', // .doc (legacy binary)
   'application/pdf',
   'text/markdown',
   'text/plain',
@@ -28,16 +30,29 @@ const ALLOWED_IMAGE_TYPES = [
   'image/webp',
 ];
 
+// FIX 10: 3-stage progress stepper type
+type UploadStage = 'reading' | 'converting' | 'opening' | null;
+
+const STAGE_LABELS: Record<NonNullable<UploadStage>, string> = {
+  reading: 'Reading file...',
+  converting: 'Converting...',
+  opening: 'Opening editor...',
+};
+
+const STAGE_ORDER: NonNullable<UploadStage>[] = ['reading', 'converting', 'opening'];
+
 export function FileUploader({
   workspaceId,
   onFileImported,
   onImageUploaded,
-  accept = '.docx,.pdf,.md,.txt,.png,.jpg,.jpeg,.gif,.webp',
+  // FIX 10: Accept .doc in addition to .docx
+  accept = '.doc,.docx,.pdf,.md,.txt,.png,.jpg,.jpeg,.gif,.webp',
   maxSizeMB = 10,
 }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<UploadStage>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,26 +63,28 @@ export function FileUploader({
       setError(null);
       setFileName(file.name);
 
-      // Validate file size
       if (file.size > maxSizeMB * 1024 * 1024) {
         setError(`File must be under ${maxSizeMB}MB`);
         return;
       }
 
       const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
-      const isDocument = ALLOWED_DOC_TYPES.includes(file.type);
+      const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.name.endsWith('.docx');
+      const isDoc = file.type === 'application/msword' || file.name.endsWith('.doc');
+      const isWordDoc = isDocx || isDoc;
+      const isDocument = ALLOWED_DOC_TYPES.includes(file.type) || isWordDoc;
 
       if (!isImage && !isDocument) {
-        setError('Unsupported file type. Use DOCX, PDF, MD, TXT, or image files.');
+        setError('Unsupported file type. Use DOCX, DOC, PDF, MD, TXT, or image files.');
         return;
       }
 
       setUploading(true);
-      setProgress(10);
+      setProgress(5);
 
       try {
         if (isImage) {
-          // Compress image client-side if > 2MB
           let uploadFile = file;
           if (file.size > 2 * 1024 * 1024 && file.type !== 'image/gif') {
             uploadFile = await compressImage(file);
@@ -75,17 +92,14 @@ export function FileUploader({
 
           setProgress(30);
 
-          const fileName = `${workspaceId}/${Date.now()}-${file.name}`;
+          const uploadFileName = `${workspaceId}/${Date.now()}-${file.name}`;
           const { data, error: uploadError } = await supabase.storage
             .from('document-assets')
-            .upload(fileName, uploadFile, {
-              cacheControl: '3600',
-              upsert: false,
-            });
+            .upload(uploadFileName, uploadFile, { cacheControl: '3600', upsert: false });
 
           if (uploadError) throw uploadError;
 
-          setProgress(80);
+          setProgress(90);
 
           const { data: urlData } = supabase.storage
             .from('document-assets')
@@ -93,8 +107,45 @@ export function FileUploader({
 
           setProgress(100);
           onImageUploaded?.(urlData.publicUrl);
+        } else if (isWordDoc) {
+          // FIX 10: 3-stage pipeline for Word documents
+          // Stage 1: Reading file
+          setStage('reading');
+          setProgress(15);
+          const arrayBuffer = await file.arrayBuffer();
+          setProgress(30);
+
+          // Stage 2: Converting with mammoth (preserves headings, bold, italic, lists, tables)
+          setStage('converting');
+          setProgress(45);
+
+          // Dynamic import — mammoth is large, only load when needed
+          const mammoth = await import('mammoth');
+
+          // FIX 10: Use convertToHtml (NOT extractRawText) — preserves rich formatting
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          const htmlContent = result.value;
+
+          if (result.messages.length > 0) {
+            console.warn('[FileUploader] Mammoth conversion warnings:', result.messages);
+          }
+
+          setProgress(65);
+
+          // FIX 10: Return HTML content to parent
+          // Parent (HomeContent) will create the document and the editor
+          // will render it from the HTML via mammoth's HTML output
+          setProgress(100);
+          setStage(null);
+
+          onFileImported?.({
+            type: 'html_content',
+            html: htmlContent,
+            title: file.name.replace(/\.(docx?|txt|md|rtf)$/i, '') || 'Untitled',
+          });
         } else {
-          // Document import via Edge Function
+          // Plain text / markdown / PDF — via Edge Function
+          setStage('reading');
           setProgress(30);
 
           const formData = new FormData();
@@ -107,9 +158,7 @@ export function FileUploader({
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-upload`,
             {
               method: 'POST',
-              headers: {
-                Authorization: `Bearer ${session?.access_token}`,
-              },
+              headers: { Authorization: `Bearer ${session?.access_token}` },
               body: formData,
             }
           );
@@ -123,10 +172,12 @@ export function FileUploader({
 
           const result = await response.json();
           setProgress(100);
+          setStage(null);
           onFileImported?.(result.content);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+        setStage(null);
       } finally {
         setUploading(false);
       }
@@ -134,20 +185,14 @@ export function FileUploader({
     [workspaceId, maxSizeMB, supabase, onFileImported, onImageUploaded]
   );
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = () => setIsDragging(false);
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
   };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
@@ -160,11 +205,11 @@ export function FileUploader({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !uploading && inputRef.current?.click()}
         className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
           isDragging
-            ? 'border-brand-400 bg-brand-50 dark:bg-brand-950/20'
-            : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600'
+            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
+            : 'border-[var(--bg-border)] hover:border-[var(--brand-primary)]/50 hover:bg-[var(--bg-elevated)]'
         }`}
       >
         <input
@@ -176,33 +221,72 @@ export function FileUploader({
         />
 
         {uploading ? (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-brand-500" />
-            <div className="w-48">
-              <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+          // FIX 10: 3-stage progress stepper — NOT just a spinner
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-3">
+              {STAGE_ORDER.map((s, idx) => {
+                const currentIdx = stage ? STAGE_ORDER.indexOf(stage) : -1;
+                const isDone = idx < currentIdx;
+                const isActive = idx === currentIdx;
+
+                return (
+                  <div key={s} className="flex items-center gap-1.5">
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${
+                      isDone
+                        ? 'border-green-500 bg-green-500 text-white'
+                        : isActive
+                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10'
+                        : 'border-[var(--bg-border)] bg-transparent'
+                    }`}>
+                      {isDone ? (
+                        <Check size={12} />
+                      ) : isActive ? (
+                        <Loader2 size={12} className="animate-spin text-[var(--brand-primary)]" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--bg-border)]" />
+                      )}
+                    </div>
+                    <span className={`text-xs whitespace-nowrap ${
+                      isActive ? 'text-[var(--brand-primary)] font-medium' :
+                      isDone ? 'text-green-600 dark:text-green-400' :
+                      'text-[var(--text-tertiary)]'
+                    }`}>
+                      {STAGE_LABELS[s]}
+                    </span>
+                    {idx < STAGE_ORDER.length - 1 && (
+                      <div className={`h-0.5 w-6 rounded-full ${isDone ? 'bg-green-400' : 'bg-[var(--bg-border)]'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-56">
+              <div className="h-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
                 <motion.div
-                  className="h-full rounded-full bg-brand-500"
+                  className="h-full rounded-full bg-[var(--brand-primary)]"
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.3 }}
                 />
               </div>
-              <p className="mt-1.5 text-xs text-neutral-500">{fileName}</p>
+              <p className="mt-1.5 text-xs text-[var(--text-tertiary)] truncate">{fileName}</p>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center gap-2">
-              <FileText size={20} className="text-neutral-400" />
-              <FileImage size={20} className="text-neutral-400" />
+              <FileText size={20} className="text-[var(--text-tertiary)]" />
+              <FileImage size={20} className="text-[var(--text-tertiary)]" />
             </div>
             <div>
-              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <p className="text-sm font-medium text-[var(--text-secondary)]">
                 Drop a file here or{' '}
-                <span className="text-brand-600 dark:text-brand-400">browse</span>
+                <span className="text-[var(--brand-primary)]">browse</span>
               </p>
-              <p className="mt-0.5 text-xs text-neutral-400">
-                DOCX, PDF, Markdown, TXT, or images (max {maxSizeMB}MB)
+              <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
+                DOC, DOCX, PDF, Markdown, TXT, or images (max {maxSizeMB}MB)
               </p>
             </div>
           </div>

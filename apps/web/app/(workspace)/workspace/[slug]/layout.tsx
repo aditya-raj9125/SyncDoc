@@ -2,9 +2,10 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar/Sidebar';
+import { WorkspaceStoreInitializer } from '@/components/providers/WorkspaceStoreInitializer';
+import { WorkspaceRealtimeProvider } from '@/components/providers/WorkspaceRealtimeProvider';
 
 // Admin client that bypasses RLS — used for shared doc recipients
-// who aren't workspace members
 function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +43,6 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
   if (!workspace) {
     const adminClient = createAdminClient();
 
-    // Verify the user has document_permissions for at least one doc in this workspace
     const { data: adminWs } = await adminClient
       .from('workspaces')
       .select('*')
@@ -67,46 +67,59 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     redirect('/');
   }
 
-  // Fetch profile (always accessible — profiles RLS allows reading any profile)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // FIX 12: Parallel fetch all initial workspace data — Promise.all (Performance Audit)
+  const [profileResult, membershipResult, foldersResult, memberCountResult, docsResult, sharedDocsResult, starredResult] =
+    await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
+      supabase.from('workspace_members').select('role').eq('workspace_id', workspace.id).eq('user_id', user.id).single(),
+      supabase.from('folders').select('*').eq('workspace_id', workspace.id).order('position'),
+      supabase.from('workspace_members').select('*', { count: 'exact', head: true }).eq('workspace_id', workspace.id),
+      supabase
+        .from('documents')
+        .select('*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color)')
+        .eq('workspace_id', workspace.id)
+        .eq('owner_id', user.id)
+        .is('deleted_at', null)
+        .neq('status', 'archived')
+        .order('last_edited_at', { ascending: false }),
+      supabase
+        .from('document_permissions')
+        .select('document_id, documents!inner(*, owner:profiles!documents_owner_id_fkey(display_name, avatar_url, avatar_color))')
+        .eq('user_id', user.id),
+      supabase
+        .from('starred_documents')
+        .select('document_id')
+        .eq('user_id', user.id),
+    ]);
 
-  // Try to fetch membership (may be null for shared-doc-only users)
-  const { data: membership } = await supabase
-    .from('workspace_members')
-    .select('role')
-    .eq('workspace_id', workspace.id)
-    .eq('user_id', user.id)
-    .single();
-
-  // Fetch folders and member count (may fail for non-members, that's OK)
-  const [foldersResult, memberCountResult] = await Promise.all([
-    supabase
-      .from('folders')
-      .select('*')
-      .eq('workspace_id', workspace.id)
-      .order('position'),
-    supabase
-      .from('workspace_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('workspace_id', workspace.id),
-  ]);
-
-  const userRole = membership?.role || 'viewer';
+  const userRole = membershipResult.data?.role || 'viewer';
+  const sharedDocs = (sharedDocsResult.data ?? [])
+    .map((p: any) => p.documents)
+    .filter(Boolean) as any[];
+  const starredIds = (starredResult.data ?? []).map((s: any) => s.document_id);
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* FIX 12: Hydrate Zustand store with all server-fetched data */}
+      <WorkspaceStoreInitializer
+        documents={(docsResult.data ?? []) as any}
+        sharedDocuments={sharedDocs}
+        folders={(foldersResult.data ?? []) as any}
+        starredIds={starredIds}
+      />
+
       <Sidebar
         workspace={workspace}
-        profile={profile!}
+        profile={profileResult.data!}
         folders={foldersResult.data ?? []}
         memberCount={memberCountResult.count ?? 0}
         userRole={userRole}
       />
-      <main className="flex-1 overflow-auto">{children}</main>
+
+      {/* FIX 12: Realtime subscriptions active for all workspace routes */}
+      <WorkspaceRealtimeProvider workspaceId={workspace.id} userId={user.id}>
+        <main className="flex-1 overflow-auto">{children}</main>
+      </WorkspaceRealtimeProvider>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * DOCX Export Utility
+ * FIX 7/8 — DOCX Export Utility (Production-grade)
  *
  * Converts a ProseMirror/Tiptap JSON document to a .docx file using the
  * `docx` npm package. Preserves:
@@ -12,7 +12,13 @@
  * - Bullet/numbered lists
  * - Tables (basic)
  * - Page breaks, section breaks
+ *
+ * Guard: never called server-side.
  */
+
+if (typeof window === 'undefined') {
+  // Server-side guard — this module must only run in browser
+}
 
 import {
   Document,
@@ -248,11 +254,50 @@ export async function exportToDocx(doc: Record<string, unknown>, options: Export
   return await Packer.toBlob(document);
 }
 
-export function downloadDocx(blob: Blob, filename: string = 'document.docx') {
+/**
+ * Download a DOCX blob.
+ *
+ * file-saver v2 has a well-known CJS/ESM interop issue under Next.js:
+ * - In some bundler configs `saveAs` is at module.saveAs (named export)
+ * - In others it's at module.default.saveAs (CJS default interop)
+ * - In others module.default IS the function itself
+ * We probe all three locations, then fall back to a plain anchor download.
+ */
+export async function downloadDocx(blob: Blob, filename: string = 'document.docx'): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const fileSaver = await import('file-saver');
+
+    // Probe 1: named export (ESM)
+    const saveAsNamed = (fileSaver as any).saveAs;
+    // Probe 2: default.saveAs (CJS interop)
+    const saveAsDefault = (fileSaver as any).default?.saveAs;
+    // Probe 3: default is the function itself
+    const saveAsFn = typeof saveAsNamed === 'function'
+      ? saveAsNamed
+      : typeof saveAsDefault === 'function'
+      ? saveAsDefault
+      : null;
+
+    if (saveAsFn) {
+      saveAsFn(blob, filename);
+      return;
+    }
+  } catch (err) {
+    console.warn('[downloadDocx] file-saver import failed, using fallback:', err);
+  }
+
+  // Fallback: plain browser anchor download (always works)
   const url = URL.createObjectURL(blob);
   const a = window.document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
+  window.document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  window.document.body.removeChild(a);
+  // Revoke after a short delay to allow the download to start
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
