@@ -200,7 +200,7 @@ export default function SignupPage() {
       </div>
 
       {/* Right — form */}
-      <div className="flex flex-1 items-center justify-center px-6 py-6 md:py-10">
+      <div className="flex flex-1 items-center justify-center px-6 py-6 md:py-10 mt-16 md:mt-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
